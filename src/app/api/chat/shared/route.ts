@@ -24,7 +24,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing message or virtualSelfId" }, { status: 400 });
     }
 
-    const { message, history = [], virtualSelfId, visitorName = null } = body;
+    const { message, history = [], virtualSelfId, visitorName = null, qaContext = "" } = body;
     const apiKey = process.env.DEEPSEEK_API_KEY;
 
     if (!apiKey) {
@@ -45,14 +45,25 @@ export async function POST(req: Request) {
       },
     });
 
-    if (!knowledgeBase?.isModelTrained || !knowledgeBase.isPubliclyShared) {
+    if (!knowledgeBase) {
       return NextResponse.json({ error: "Virtual self not available" }, { status: 404 });
     }
 
     const userName = knowledgeBase.user?.name || "the person";
-    const userKnowledge = knowledgeBase.trainedPrompt
-      ? `\n\nUSER'S PERSONAL KNOWLEDGE BASE (This is YOUR information about yourself, [Person's name]):\n${knowledgeBase.trainedPrompt}`
-      : "";
+    const hasKnowledge = Boolean(knowledgeBase.trainedPrompt) || (qaContext && qaContext.trim().length > 0);
+    let userKnowledge = "";
+    if (knowledgeBase.trainedPrompt) {
+      userKnowledge = `\n\nUSER'S PERSONAL KNOWLEDGE BASE (This is YOUR information about yourself, [Person's name]):\n${knowledgeBase.trainedPrompt}`;
+    }
+
+    // If no knowledge, instruct AI to ask about the user and start building their profile
+    let onboardingPrompt = "";
+    if (!hasKnowledge) {
+      onboardingPrompt = `\n\nIMPORTANT: You do NOT have any personal knowledge about yourself yet. Your job is to get to know your creator (the user) by asking them questions about their life, interests, background, and personality. Start by asking friendly, open-ended questions (e.g., 'What do you love to do?', 'Where are you from?', 'What are your favorite things?'). As they answer, remember their responses and let them know you are learning about them. Your goal is to build up a profile so you can represent them better in the future. Always be curious, friendly, and thank them for sharing!`;
+    }
+
+    // Flag to indicate if AI is answering according to user's knowledge
+    const isAnsweringFromKnowledge = hasKnowledge;
 
     // Add Velamini context
     const velaminiContext = `\n\nABOUT VELAMINI:\nVelamini is the platform that created you - it allows people to build their virtual selves/digital twins. The website is ${process.env.NEXT_PUBLIC_APP_URL || 'https://velamini.com'}. Encourage visitors to create their own virtual self there!`;
@@ -62,8 +73,10 @@ export async function POST(req: Request) {
       ? `\n\nVISITOR CONTEXT:\nYou're chatting with ${visitorName}. Use their name naturally in conversation.`
       : `\n\nVISITOR CONTEXT:\nYou're chatting with someone new. If they haven't introduced themselves, ask for their name naturally!`;
 
-    const systemPrompt = VIRTUAL_SELF_SYSTEM_PROMPT.replaceAll("[Person's name]", userName) 
-      + userKnowledge 
+    const systemPrompt = VIRTUAL_SELF_SYSTEM_PROMPT.replaceAll("[Person's name]", userName)
+      + userKnowledge
+      + (qaContext ? `\n\n${qaContext}` : "")
+      + onboardingPrompt
       + velaminiContext
       + visitorContext;
 
@@ -111,12 +124,29 @@ export async function POST(req: Request) {
           },
         });
         console.log("Saved shared chat:", chat.id);
+
+        // Extract Q&A pair and save to KnowledgeBase
+        // Simple heuristic: treat user message as question, assistant reply as answer
+        if (virtualSelfId && message && finalContent) {
+          // Fetch existing Q&A pairs
+          const kb = await prisma.knowledgeBase.findUnique({ where: { userId: virtualSelfId } });
+          let qaPairs: Array<{ question: string; answer: string }> = [];
+          if (kb && kb.qaPairs) {
+            // Cast to any[] if needed due to Prisma Json type
+            qaPairs = Array.isArray(kb.qaPairs) ? (kb.qaPairs as any[]) : [];
+          }
+          qaPairs.push({ question: message, answer: finalContent });
+          await prisma.knowledgeBase.update({
+            where: { userId: virtualSelfId },
+            data: { qaPairs },
+          });
+        }
       } catch (dbErr) {
         console.error("Persistence Error:", dbErr);
       }
     }
 
-    return NextResponse.json({ text: finalContent });
+    return NextResponse.json({ text: finalContent, isAnsweringFromKnowledge });
 
   } catch (error: unknown) {
     console.error("POST /api/chat/shared error:", error);

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Resume PDF Preview</title>
+  <style>
+    body { margin: 0; padding: 0; background: #f8f8f8; }
+    #resume-container { background: #fff; margin: 40px auto; padding: 32px; border-radius: 12px; box-shadow: 0 2px 16px #0001; max-width: 800px; min-height: 1000px; position: relative; }
+    #download-btn { display: block; margin: 24px auto 0; padding: 12px 32px; font-size: 1.1rem; border-radius: 6px; background: #2563eb; color: #fff; border: none; cursor: pointer; }
+    #download-btn:hover { background: #1d4ed8; }
+  </style>
+</head>
+<body>
+  <div id="resume-container"></div>
+  <button id="download-btn">Download PDF</button>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script>
+    // Get resume HTML from query param
+    function getQueryParam(name) {
+      const url = new URL(window.location.href);
+      return url.searchParams.get(name);
+    }
+    const resumeHtml = decodeURIComponent(getQueryParam('resume') || '');
+    document.getElementById('resume-container').innerHTML = resumeHtml;
+
+    document.getElementById('download-btn').onclick = function() {
+      const element = document.getElementById('resume-container');
+      html2pdf().from(element).set({
+        margin: 0.5,
+        filename: 'resume.pdf',
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+      }).save();
+    };
+  </script>
+</body>
+</html>

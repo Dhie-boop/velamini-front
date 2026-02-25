@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { PaperPlaneIcon } from "@radix-ui/react-icons";
+import { User as UserIcon } from "lucide-react";
 
 type Message = {
   id: number;
@@ -9,7 +10,7 @@ type Message = {
   content: string;
 };
 
-import { getAISystemPrompt } from "@/lib/ai-config";
+// import { getAISystemPrompt } from "@/lib/ai-config";
 
 interface DashboardChatProps {
   user?: {
@@ -40,9 +41,9 @@ function ChatInput({
 
   return (
     <div className="flex w-full gap-2 items-center bg-transparent">
-      <div className="flex-1 flex items-center bg-zinc-800/80 rounded-2xl px-4 py-3 shadow-md border border-transparent focus-within:ring-2 focus-within:ring-purple-500/70">
+      <div className="flex-1 flex items-center bg-base-200 rounded-2xl px-4 py-3 shadow-md border border-base-300 focus-within:ring-2 focus-within:ring-primary">
         <input
-          className="flex-1 bg-transparent text-gray-100 placeholder-gray-400 focus:outline-none text-lg font-medium"
+          className="flex-1 bg-transparent text-base-content placeholder-base-content/60 focus:outline-none text-lg font-medium"
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -51,7 +52,7 @@ function ChatInput({
           autoFocus
         />
         <button
-          className="ml-2 p-2 rounded-full bg-gradient-to-br from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all border-none outline-none"
+          className="ml-2 p-2 rounded-full bg-primary text-white shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all border-none outline-none"
           onClick={onSend}
           disabled={!input.trim()}
           aria-label="Send"
@@ -69,6 +70,13 @@ function DashboardChat({ user, knowledgeBase }: DashboardChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // New chat handler
+  const handleNewChat = () => {
+    setMessages([]);
+    localStorage.removeItem("velamini_dashboard_chat_history");
+    setInput("");
+  };
 
   // Load from localStorage
   useEffect(() => {
@@ -105,9 +113,22 @@ function DashboardChat({ user, knowledgeBase }: DashboardChatProps) {
       content: input.trim(),
     };
 
+    // Detect if last assistant message was a question
+    const lastAssistantMsg = [...messages].reverse().find((m) => m.role === "assistant");
+    const lastQuestion = lastAssistantMsg && /\?$/.test(lastAssistantMsg.content.trim()) ? lastAssistantMsg.content.trim() : null;
+
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setIsTyping(true);
+
+    // If last message was a question, save Q&A pair
+    if (lastQuestion && userMessage.content.length > 1 && user?.name) {
+      fetch("/api/knowledgebase/qa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: lastQuestion, answer: userMessage.content }),
+      }).catch((err) => console.error("Failed to save Q&A:", err));
+    }
 
     try {
       const recentHistory = messages.slice(-6).map((m) => ({
@@ -115,11 +136,13 @@ function DashboardChat({ user, knowledgeBase }: DashboardChatProps) {
         content: m.content,
       }));
 
-      // Prepare system prompt for this user
-      const systemPrompt = getAISystemPrompt({
-        type: "personal",
-        name: user?.name || undefined,
-      });
+      // Custom system prompt for dashboard: AI is user's digital twin being trained
+      const systemPrompt = `You are a digital twin (virtual self) being trained by the user. The user is ${user?.name || "the person"}.
+    You must ALWAYS answer as if you are being trained by the user, who is your creator. NEVER say you don't know the user. ALWAYS refer to them as your trainer or creator.
+    Every answer must acknowledge the user as your creator/trainer, and you must never claim to be a stranger or not know them.
+    Your name is ${user?.name || "the person"}. When asked for your name, always say: 'My name is ${user?.name || "the person"}, because I am your digital twin.'
+    Always answer in simple, concise words unless the user asks for more detail.
+    Example: 'Thank you for teaching me, ${user?.name || "the person"}! As your digital twin, I will remember this.' or 'As your virtual self, I am here to learn from you and represent you.'`;
 
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -129,7 +152,6 @@ function DashboardChat({ user, knowledgeBase }: DashboardChatProps) {
           history: recentHistory,
           knowledgeBase: knowledgeBase || null,
           systemPrompt,
-          // userId: user?.email, // Optionally send user context
         }),
       });
 
@@ -162,7 +184,16 @@ function DashboardChat({ user, knowledgeBase }: DashboardChatProps) {
   const avatarSrc = user?.image || "/logo.png"; // fallback same for user & assistant
 
   return (
-    <div className="relative flex-1 min-h-screen overflow-hidden bg-[var(--background)] text-[var(--foreground)]">
+    <div className="relative flex-1 min-h-screen overflow-hidden bg-base-100 text-base-content">
+      {/* New Chat Button */}
+      <div className="absolute top-4 right-4 z-20">
+        <button
+          className="btn btn-primary"
+          onClick={handleNewChat}
+        >
+          New Chat
+        </button>
+      </div>
       {/* HUD grid background */}
       <div className="pointer-events-none absolute inset-0 hud-grid opacity-20" />
 
@@ -171,7 +202,7 @@ function DashboardChat({ user, knowledgeBase }: DashboardChatProps) {
         {Array.from({ length: 20 }).map((_, i) => (
           <span
             key={i}
-            className="absolute h-1 w-1 rounded-full bg-cyan-400 animate-float"
+            className="absolute h-1 w-1 rounded-full bg-primary animate-float"
             style={{
               left: `${(i * 17) % 100}%`,
               top: `${(i * 29) % 100}%`,
@@ -183,19 +214,19 @@ function DashboardChat({ user, knowledgeBase }: DashboardChatProps) {
       </div>
 
       <div className="flex flex-col h-screen w-full items-center justify-center bg-transparent relative z-10">
-        <div className="w-full max-w-2xl h-[90vh] flex flex-col bg-transparent overflow-hidden">
+        <div className="w-full max-w-2xl h-[90vh] flex flex-col bg-base-200 rounded-xl shadow-lg overflow-hidden">
           {/* Header */}
-          <div className="px-6 py-4 flex items-center gap-3">
+          <div className="px-6 py-4 flex items-center gap-3 border-b border-base-300">
             <img
               src={avatarSrc}
               alt="Avatar"
-              className="w-10 h-10 rounded-full border-2 border-purple-400 shadow-sm object-cover"
+              className="w-10 h-10 rounded-full border-2 border-primary shadow-sm object-cover"
             />
             <div>
-              <div className="font-semibold text-lg text-gray-800 dark:text-gray-100">
+              <div className="font-semibold text-lg text-base-content">
                 {user?.name || "Velamini Dashboard"}
               </div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">
+              <div className="text-xs text-base-content/60">
                 AI Assistant
               </div>
             </div>
@@ -210,66 +241,62 @@ function DashboardChat({ user, knowledgeBase }: DashboardChatProps) {
                   alt="Assistant"
                   className="w-20 h-20 mb-5 rounded-full shadow-lg"
                 />
-                <div className="text-xl font-medium text-gray-700 dark:text-gray-200 mb-2">
+                <div className="text-xl font-medium text-base-content mb-2">
                   Start a conversation
                 </div>
-                <div className="text-sm text-gray-500 dark:text-gray-400">
+                <div className="text-sm text-base-content/60">
                   How can I help you today?
                 </div>
               </div>
             )}
 
-            {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"} mb-5 items-end gap-2`}
-              >
-                {msg.role === "assistant" && (
-                  <img
-                    src="/logo.png"
-                    alt="Assistant"
-                    className="w-8 h-8 rounded-full flex-shrink-0 shadow-sm border border-purple-200 dark:border-purple-800"
-                  />
-                )}
-
-                <div
-                  className={`max-w-[75%] px-4 py-3 rounded-xl text-[15px] leading-relaxed ${
-                    msg.role === "user"
-                      ? "bg-cyan-600/90 text-white rounded-br-md"
-                      : "bg-zinc-800/90 text-zinc-100 rounded-bl-md"
-                  }`}
-                >
-                  {msg.content}
-                  <div className="text-[10px] text-right opacity-70 mt-1 select-none">
-                    {new Date(msg.id).toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
+            {messages.map((msg) => {
+              const isUser = msg.role === "user";
+              let bubbleClass = isUser
+                ? "chat-bubble chat-bubble-primary text-base-content"
+                : "chat-bubble bg-accent text-accent-content";
+              let avatar: React.ReactNode = null;
+              if (isUser) {
+                avatar = <UserIcon className="w-8 h-8 text-primary" />;
+              } else {
+                avatar = user?.image ? (
+                  <img alt="Avatar" src={user.image} />
+                ) : (
+                  <UserIcon className="w-8 h-8 text-accent" />
+                );
+              }
+              let name = isUser ? "You" : user?.name || "AI Assistant";
+              let time = new Date(msg.id).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+              let footer = isUser ? "Delivered" : `Seen at ${time}`;
+              return (
+                <div key={msg.id} className={`chat ${isUser ? "chat-end" : "chat-start"}`}>
+                  <div className="chat-image avatar">
+                    <div className="w-10 h-10 rounded-full bg-base-100 border border-base-300 flex items-center justify-center overflow-hidden">
+                      {avatar}
+                    </div>
                   </div>
+                  <div className="chat-header text-base-content">
+                    {name}
+                    <time className="text-xs opacity-50">{time}</time>
+                  </div>
+                  <div className={bubbleClass}>{msg.content}</div>
+                  <div className="chat-footer opacity-50 text-base-content/60">{footer}</div>
                 </div>
-
-                {msg.role === "user" && (
-                  <img
-                    src={avatarSrc}
-                    alt="User"
-                    className="w-8 h-8 rounded-full flex-shrink-0 shadow-sm border border-blue-200 dark:border-blue-800"
-                  />
-                )}
-              </div>
-            ))}
+              );
+            })}
 
             {isTyping && (
               <div className="flex justify-start items-end mb-5">
                 <img
                   src="/logo.png"
                   alt="Assistant"
-                  className="w-8 h-8 rounded-full mr-2 shadow-sm border border-purple-200 dark:border-purple-800"
+                  className="w-8 h-8 rounded-full mr-2 shadow-sm border border-primary"
                 />
-                <div className="px-4 py-3 rounded-2xl bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-bl-none">
+                <div className="px-4 py-3 rounded-2xl bg-base-100 border border-base-300 rounded-bl-none">
                   <div className="flex gap-1.5 items-center h-6">
-                    <div className="w-2.5 h-2.5 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce [animation-delay:0ms]"></div>
-                    <div className="w-2.5 h-2.5 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce [animation-delay:180ms]"></div>
-                    <div className="w-2.5 h-2.5 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce [animation-delay:360ms]"></div>
+                    <div className="w-2.5 h-2.5 bg-base-content rounded-full animate-bounce [animation-delay:0ms]"></div>
+                    <div className="w-2.5 h-2.5 bg-base-content rounded-full animate-bounce [animation-delay:180ms]"></div>
+                    <div className="w-2.5 h-2.5 bg-base-content rounded-full animate-bounce [animation-delay:360ms]"></div>
                   </div>
                 </div>
               </div>

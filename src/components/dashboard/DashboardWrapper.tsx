@@ -10,8 +10,9 @@ import ProfileView from "@/components/dashboard/profile";
 import SettingsView from "@/components/dashboard/settings";
 import TrainingView from "@/components/dashboard/training";
 import DashboardChat from "@/components/dashboard/dashboardchat";
+import ResumeView from "@/components/dashboard/resume";
 
-export type DashboardViewType = "dashboard" | "training" | "chat" | "profile" | "settings";
+export type DashboardViewType = "dashboard" | "training" | "chat" | "profile" | "settings" | "resume";
 
 interface DashboardWrapperProps {
   user: {
@@ -35,26 +36,17 @@ export default function DashboardWrapper({ user, stats, knowledgeBase }: Dashboa
   const [isDarkMode, setIsDarkMode] = useState(false);
 
   useEffect(() => {
-    const syncTheme = () => {
-      const isDark = document.documentElement.classList.contains("dark");
-      setIsDarkMode(isDark);
-    };
-    syncTheme();
-    const obs = new MutationObserver(syncTheme);
-    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-    return () => obs.disconnect();
+    // DaisyUI theme sync
+    const storedTheme = localStorage.getItem("theme") || "light";
+    document.documentElement.setAttribute("data-theme", storedTheme);
+    setIsDarkMode(storedTheme === "dark");
   }, []);
 
   const handleThemeToggle = () => {
-    const newTheme = !isDarkMode;
-    setIsDarkMode(newTheme);
-    if (newTheme) {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("theme", "dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("theme", "light");
-    }
+    const newTheme = isDarkMode ? "light" : "dark";
+    setIsDarkMode(newTheme === "dark");
+    document.documentElement.setAttribute("data-theme", newTheme);
+    localStorage.setItem("theme", newTheme);
   };
 
   const renderView = () => {
@@ -67,8 +59,10 @@ export default function DashboardWrapper({ user, stats, knowledgeBase }: Dashboa
         return <DashboardChat user={user} knowledgeBase={knowledgeBase} />;
       case "profile":
         return <ProfileView user={user} knowledgeBase={knowledgeBase} />;
+      case "resume":
+        return <ResumeView />;
       case "settings":
-        return <SettingsView user={user} />;
+        return <SettingsView />;
       default:
         return <DashboardView stats={stats} />;
     }
@@ -80,7 +74,7 @@ export default function DashboardWrapper({ user, stats, knowledgeBase }: Dashboa
   };
 
   return (
-    <div className="flex min-h-screen w-full overflow-x-hidden bg-slate-50 dark:bg-slate-950 lg:h-screen">
+    <div className={`flex min-h-screen w-full overflow-x-hidden ${isDarkMode ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'} lg:h-screen`}>
       {/* Desktop Sidebar */}
       <Sidebar
         user={user}

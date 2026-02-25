@@ -1,5 +1,12 @@
+model Resume {
+  id        String   @id @default(cuid())
+  userId    String
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
 generator client {
-  provider = "prisma-client-js"
+  provider   = "prisma-client-js"
   engineType = "library"
 }
 
@@ -8,16 +15,16 @@ datasource db {
 }
 
 model Chat {
-  id              String         @id @default(cuid())
-  userId          String?        // Optional: Can be "whatsapp:+123..." or null for web
-  organizationId  String?        // Which organization this chat belongs to (for WhatsApp business)
-  organization    Organization?  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  virtualSelfId   String?        // ID of the user whose virtual self is being chatted with
-  virtualSelf     User?          @relation("VirtualSelfChats", fields: [virtualSelfId], references: [id], onDelete: Cascade)
-  isSharedChat    Boolean        @default(false) // True if this is a shared virtual self chat
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  messages        Message[]
+  id             String        @id @default(cuid())
+  userId         String? // Optional: Can be "whatsapp:+123..." or null for web
+  organizationId String? // Which organization this chat belongs to (for WhatsApp business)
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  virtualSelfId  String? // ID of the user whose virtual self is being chatted with
+  virtualSelf    User?         @relation("VirtualSelfChats", fields: [virtualSelfId], references: [id], onDelete: Cascade)
+  isSharedChat   Boolean       @default(false) // True if this is a shared virtual self chat
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  messages       Message[]
 
   @@index([virtualSelfId])
   @@index([organizationId])
@@ -27,7 +34,7 @@ model Chat {
 model Message {
   id        String   @id @default(cuid())
   chatId    String
-  role      String   // "user" or "assistant"
+  role      String // "user" or "assistant"
   content   String   @db.Text
   createdAt DateTime @default(now())
   chat      Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
@@ -43,114 +50,117 @@ model Feedback {
 }
 
 model KnowledgeBase {
-  id                 String         @id @default(cuid())
-  userId             String?        @unique
-  user               User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  organizationId     String?        @unique
-  organization       Organization?  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  
+  id             String        @id @default(cuid())
+  userId         String?       @unique
+  user           User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String?       @unique
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
   // Identity
   fullName           String?
   birthDate          String?
   birthPlace         String?
   currentLocation    String?
-  languages          String?  // Comma-separated or JSON
-  bio                String?  @db.Text
+  languages          String? // Comma-separated or JSON
+  bio                String? @db.Text
   relationshipStatus String?
-  hobbies            String?  // Comma-separated or JSON
+  hobbies            String? // Comma-separated or JSON
   favoriteFood       String?
-  
+
   // Education (JSON or Text)
-  education          String?  @db.Text
-  
+  education String? @db.Text
+
   // Experience (JSON or Text)
-  experience         String?  @db.Text
-  
+  experience String? @db.Text
+
   // Skills (JSON or Text)
-  skills             String?  @db.Text
-  
+  skills String? @db.Text
+
   // Projects (JSON or Text)
-  projects           String?  @db.Text
-  
+  projects String? @db.Text
+
   // Awards (JSON or Text)
-  awards             String?  @db.Text
-  
+  awards String? @db.Text
+
   // Social Links (JSON or Text)
-  socialLinks        String?  @db.Text
-  
+  socialLinks String? @db.Text
+
   // Social Updates
-  socialUpdates      String?  @db.Text
-  
+  socialUpdates String? @db.Text
+
+  // Q&A pairs for digital twin (JSON array)
+  qaPairs Json?
+
   // Full raw content (optional backup)
-  rawContent         String?  @db.Text
-  
+  rawContent String? @db.Text
+
   // Training status
-  isModelTrained     Boolean  @default(false)
-  trainedPrompt      String?  @db.Text
-  lastTrainedAt      DateTime?
-  
+  isModelTrained Boolean   @default(false)
+  trainedPrompt  String?   @db.Text
+  lastTrainedAt  DateTime?
+
   // Sharing
-  shareSlug          String?  @unique // Unique slug for sharing (e.g., "tresor", "john-doe")
-  isPubliclyShared   Boolean  @default(false)
-  shareViews         Int      @default(0) // Track how many times shared link was accessed
-  
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  shareSlug        String? @unique // Unique slug for sharing (e.g., "tresor", "john-doe")
+  isPubliclyShared Boolean @default(false)
+  shareViews       Int     @default(0) // Track how many times shared link was accessed
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // Organization Model for WhatsApp Business Numbers
 model Organization {
-  id                  String         @id @default(cuid())
-  name                String
-  description         String?        @db.Text
-  
+  id          String  @id @default(cuid())
+  name        String
+  description String? @db.Text
+
   // Owner
-  ownerId             String
-  owner               User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  
+  ownerId String
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
   // WhatsApp Configuration
-  whatsappNumber      String?        @unique  // E.g., "+250788111111"
-  whatsappNumberSid   String?        // Twilio Phone Number SID (for management)
-  displayName         String?        // Business display name on WhatsApp
-  
+  whatsappNumber    String? @unique // E.g., "+250788111111"
+  whatsappNumberSid String? // Twilio Phone Number SID (for management)
+  displayName       String? // Business display name on WhatsApp
+
   // AI Configuration
-  knowledgeBaseId     String?        @unique
-  knowledgeBase       KnowledgeBase?
-  
+  knowledgeBaseId String?        @unique
+  knowledgeBase   KnowledgeBase?
+
   // Status & Plan
-  isActive            Boolean        @default(true)
-  planType            String         @default("trial") // "trial", "starter", "business", "enterprise"
-  
+  isActive Boolean @default(true)
+  planType String  @default("trial") // "trial", "starter", "business", "enterprise"
+
   // Limits & Usage (based on plan)
-  monthlyMessageLimit Int            @default(100)  // Messages per month
-  monthlyMessageCount Int            @default(0)    // Current month usage
-  lastResetDate       DateTime       @default(now()) // When counter was last reset
-  
+  monthlyMessageLimit Int      @default(100) // Messages per month
+  monthlyMessageCount Int      @default(0) // Current month usage
+  lastResetDate       DateTime @default(now()) // When counter was last reset
+
   // Business Info
-  industry            String?
-  website             String?
-  contactEmail        String?
-  
+  industry     String?
+  website      String?
+  contactEmail String?
+
   // Settings
-  businessHoursEnabled Boolean       @default(false)
-  businessHoursStart   String?       // E.g., "09:00"
-  businessHoursEnd     String?       // E.g., "17:00"
-  timezone             String?       // E.g., "Africa/Kigali"
-  autoReplyEnabled     Boolean       @default(true)
-  welcomeMessage       String?       @db.Text
-  
+  businessHoursEnabled Boolean @default(false)
+  businessHoursStart   String? // E.g., "09:00"
+  businessHoursEnd     String? // E.g., "17:00"
+  timezone             String? // E.g., "Africa/Kigali"
+  autoReplyEnabled     Boolean @default(true)
+  welcomeMessage       String? @db.Text
+
   // Analytics
-  totalConversations  Int            @default(0)
-  totalMessages       Int            @default(0)
-  averageResponseTime Float?         // In seconds
-  
+  totalConversations  Int    @default(0)
+  totalMessages       Int    @default(0)
+  averageResponseTime Float? // In seconds
+
   // Timestamps
-  createdAt           DateTime       @default(now())
-  updatedAt           DateTime       @updatedAt
-  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Relations
-  chats               Chat[]
-  
+  chats Chat[]
+
   @@index([ownerId])
   @@index([whatsappNumber])
 }
@@ -158,18 +168,18 @@ model Organization {
 // NextAuth Models
 
 model Account {
-  id                 String  @id @default(cuid())
-  userId             String
-  type               String
-  provider           String
-  providerAccountId  String
-  refresh_token      String?  @db.Text
-  access_token       String?  @db.Text
-  expires_at         Int?
-  token_type         String?
-  scope              String?
-  id_token           String?  @db.Text
-  session_state      String?
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -185,18 +195,29 @@ model Session {
 }
 
 model User {
-  id               String         @id @default(cuid())
-  name             String?
-  email            String?        @unique
-  emailVerified    DateTime?
-  image            String?
-  accountType      String         @default("personal") // "personal" or "organization"
-  onboardingComplete Boolean      @default(false) // Track if user completed onboarding
-  accounts         Account[]
-  sessions         Session[]
-  knowledgeBase    KnowledgeBase?
-  virtualSelfChats Chat[]         @relation("VirtualSelfChats")
-  organizations    Organization[] // Organizations owned by this user
+  id                 String         @id @default(cuid())
+  name               String?
+  email              String?        @unique
+  emailVerified      DateTime?
+  image              String?
+  accountType        String         @default("personal") // "personal" or "organization"
+  onboardingComplete Boolean        @default(false) // Track if user completed onboarding
+  accounts           Account[]
+  sessions           Session[]
+  knowledgeBase      KnowledgeBase?
+  virtualSelfChats   Chat[]         @relation("VirtualSelfChats")
+  organizations      Organization[] // Organizations owned by this user
+  swag               Swag[]         // Swag items created by this user
+}
+
+
+model Swag {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content   String   @db.Text // Swag content (JSON or text)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model VerificationToken {

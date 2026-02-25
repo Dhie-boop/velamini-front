@@ -36,7 +36,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing message" }, { status: 400 });
     }
 
-    const { message, history = [], useLocalKnowledge = false } = body;
+    const { message, history = [], useLocalKnowledge = false, systemPrompt: customSystemPrompt } = body;
     const apiKey = process.env.DEEPSEEK_API_KEY;
 
     if (!apiKey) {
@@ -101,7 +101,10 @@ export async function POST(req: Request) {
             : "No search results found.";
     }
 
-    const systemPrompt = VIRTUAL_SELF_SYSTEM_PROMPT.replaceAll("[Person's name]", userName) + userKnowledge + velaminiContext;
+    // Use custom systemPrompt if provided (e.g., from dashboard chat), else default
+    const systemPrompt = customSystemPrompt
+      ? customSystemPrompt
+      : VIRTUAL_SELF_SYSTEM_PROMPT.replaceAll("[Person's name]", userName) + userKnowledge + velaminiContext;
 
     const tools = [
       {

@@ -1,9 +1,7 @@
 'use client';
 import { useState, useRef, useEffect } from "react";
 import { PaperPlaneIcon } from "@radix-ui/react-icons";
-import { VIRTUAL_TRESOR_SYSTEM_PROMPT,} from "@/lib/ai-config";
 import FeedbackModal from "@/components/chat-ui/FeedbackModal";
-import MessageList from "@/components/chat-ui/MessageList";
 import ChatNavbar from "@/components/chat-ui/ChatNavbar";
 
 interface PageProps {
@@ -11,14 +9,48 @@ interface PageProps {
 }
 
 export default function SharedChatPage({ params }: PageProps) {
-  // This is a client component now, so params must be accessed differently
-  // You may need to use useParams from next/navigation if needed
-  // For now, fallback to window.location for slug extraction
-  let slug = "";
-  if (typeof window !== "undefined") {
-    const match = window.location.pathname.match(/\/chat\/([^/]+)/);
-    if (match) slug = match[1];
-  }
+  // Get slug from params (App Router)
+  const [slug, setSlug] = useState<string>("");
+  useEffect(() => {
+    (async () => {
+      if (params && typeof params.then === "function") {
+        const resolved = await params;
+        setSlug(resolved.slug);
+      } else if (params && typeof params === "object" && "slug" in params) {
+        setSlug(typeof params.slug === "string" ? params.slug : "");
+      }
+    })();
+  }, [params]);
+
+  // State for virtual self info
+  const [virtualSelf, setVirtualSelf] = useState<{ name: string; image?: string; userId?: string } | null>(null);
+  // Store resolved userId for chat API
+  const [virtualSelfId, setVirtualSelfId] = useState<string | null>(null);
+  // Q&A pairs for this virtual self
+  const [qaPairs, setQaPairs] = useState<Array<{ question: string; answer: string }>>([]);
+
+  // Fetch userId and virtual self info using swag as slug
+  useEffect(() => {
+    if (!slug) return;
+    fetch(`/api/swag/resolve?slug=${encodeURIComponent(slug)}`)
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => {
+        if (data && data.userId) {
+          setVirtualSelfId(data.userId);
+          setVirtualSelf({ name: data.name, image: data.image });
+          fetch(`/api/knowledgebase/qa?userId=${data.userId}`)
+            .then((res) => res.ok ? res.json() : null)
+            .then((qaData) => {
+              if (qaData && Array.isArray(qaData.qaPairs)) setQaPairs(qaData.qaPairs);
+              else setQaPairs([]);
+            });
+        } else {
+          setVirtualSelfId(null);
+          setVirtualSelf(null);
+          setQaPairs([]);
+        }
+      });
+  }, [slug]);
 
   // Chat state and logic (copied from ChatPanel)
   const [input, setInput] = useState("");
@@ -82,15 +114,26 @@ export default function SharedChatPage({ params }: PageProps) {
         useDefaultKnowledge = true;
       }
 
-      const res = await fetch("/api/chat", {
+      // Wait for virtualSelfId to be resolved
+      if (!virtualSelfId) {
+        setIsTyping(false);
+        return;
+      }
+
+      // Inject Q&A pairs into the context/system prompt for the AI
+      let qaContext = "";
+      if (qaPairs.length > 0) {
+        qaContext = '\n\nUSER Q&A MEMORY (Recall these answers if asked similar questions):\n' + qaPairs.map(q => `Q: ${q.question}\nA: ${q.answer}`).join("\n\n");
+      }
+
+      const res = await fetch("/api/chat/shared", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: userMessage.content,
           history: recentHistory,
-          useLocalKnowledge: true,
-          defaultKnowledge: useDefaultKnowledge,
-          systemPrompt: useDefaultKnowledge ? VIRTUAL_TRESOR_SYSTEM_PROMPT : undefined,
+          virtualSelfId: virtualSelfId,
+          qaContext,
         }),
       });
 
@@ -201,11 +244,85 @@ export default function SharedChatPage({ params }: PageProps) {
                 >
                   <div className="w-full max-w-full sm:max-w-3xl mx-auto flex flex-col min-h-full">
                     {messages.length > 0 && (
-                      <MessageList
-                        messages={messages}
-                        isTyping={isTyping}
-                        bottomRef={bottomRef}
-                      />
+                      <div className="flex flex-col gap-2">
+                        {messages.map((msg, idx) => {
+                          // DaisyUI bubble color logic
+                          let bubbleClass = "chat-bubble chat-bubble-primary";
+                          let avatar = "/logo.png";
+                          let name = "You";
+                          let time = new Date(msg.id).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                          let footer = "Delivered";
+                          if (msg.role === "assistant") {
+                            const assistantColors = [
+                              "chat-bubble-info",
+                              "chat-bubble-success",
+                             
+                            ];
+                            bubbleClass = `chat-bubble ${assistantColors[idx % assistantColors.length]}`;
+                            avatar = virtualSelf?.image || "/logo.png";
+                            name = virtualSelf?.name || "Virtual Self";
+                            footer = `Seen at ${time}`;
+                          } else {
+                            const userColors = [
+                              "chat-bubble-primary",
+                              "chat-bubble-secondary",
+                              
+                            ];
+                            bubbleClass = `chat-bubble ${userColors[idx % userColors.length]}`;
+                          }
+                          // Always show user messages on right, assistant on left
+                          const isCurrentUser = msg.role === "user";
+                          return (
+                            <div
+                              key={msg.id}
+                              className={`chat ${isCurrentUser ? "chat-end" : "chat-start"}`}
+                            >
+                              <div className="chat-image avatar">
+                                <div className="w-10 rounded-full">
+                                  <img alt="Avatar" src={avatar} />
+                                </div>
+                              </div>
+                              <div className="chat-header">
+                                {name}
+                                <time className="text-xs opacity-50">{time}</time>
+                              </div>
+                              <div className={bubbleClass}>{msg.content}</div>
+                              <div className="chat-footer opacity-50">{footer}</div>
+                            </div>
+                          );
+                        })}
+                        {isTyping && virtualSelf && (
+                          <div className="chat chat-start">
+                            <div className="chat-image avatar">
+                              <div className="w-10 rounded-full">
+                                <img alt="Avatar" src={virtualSelf?.image || "/logo.png"} />
+                              </div>
+                            </div>
+                            <div className="chat-header">
+                              {virtualSelf?.name || "Virtual Self"}
+                              <time className="text-xs opacity-50">...</time>
+                            </div>
+                            <div className="chat-bubble chat-bubble-info">Typing...</div>
+                            <div className="chat-footer opacity-50">...</div>
+                          </div>
+                        )}
+                        {!virtualSelf && (
+                          <div className="chat chat-start">
+                            <div className="chat-image avatar">
+                              <div className="w-10 rounded-full">
+                                <img alt="Avatar" src={"/logo.png"} />
+                              </div>
+                            </div>
+                            <div className="chat-header">
+                              Virtual Self
+                              <time className="text-xs opacity-50">...</time>
+                            </div>
+                            <div className="chat-bubble chat-bubble-error">Virtual self not available.</div>
+                            <div className="chat-footer opacity-50">...</div>
+                          </div>
+                        )}
+                        <div ref={bottomRef} />
+                      </div>
                     )}
 
                     {/* Input in the middle if new chat */}

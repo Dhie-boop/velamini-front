@@ -1,5 +1,5 @@
 // HeroUI Imports
-import { Card, Spinner } from "@heroui/react";
+// removed Card import to use DaisyUI chat-bubble classes instead
 import { motion, AnimatePresence } from "framer-motion";
 import { User as UserIcon } from "lucide-react";
 
@@ -59,11 +59,11 @@ export default function MessageList({
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
-              className={`flex w-full ${isUser ? "justify-end" : "justify-start"} gap-3`}
+              className={`chat ${isUser ? "chat-end" : "chat-start"} w-full`}
             >
               {!isUser && (
-                <div className="flex-shrink-0 mt-1 hidden sm:block">
-                  <div className="w-8 h-8 rounded-full overflow-hidden border border-default-200 bg-default-100 flex items-center justify-center">
+                <div className="chat-image avatar">
+                  <div className="w-8 h-8 rounded-full">
                     {assistantImage ? (
                       <img src={assistantImage} alt={assistantName} className="w-full h-full object-cover" />
                     ) : (
@@ -72,8 +72,7 @@ export default function MessageList({
                   </div>
                 </div>
               )}
-
-              <div className={`flex flex-col max-w-[85%] sm:max-w-[75%] ${isUser ? "items-end" : "items-start"}`}>
+              <div className="chat-bubble max-w-[85%] sm:max-w-[75%]">
                 <div className="flex items-center gap-2 mb-1 px-1">
                   <span className="text-tiny text-default-500 font-medium">
                     {isUser ? "You" : assistantName}
@@ -82,38 +81,26 @@ export default function MessageList({
                     {new Date(msg.id).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
-
-                <Card
-                  className={`border-none shadow-sm ${isUser
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-content2 dark:bg-content1 text-foreground"
-                    }`}
-                >
-                  <div className="p-3 sm:p-4 text-small sm:text-medium overflow-hidden break-words">
-                    {isUser ? (
-                      <p className="break-words whitespace-pre-wrap">{msg.content}</p>
-                    ) : (
-                      <div className="break-words whitespace-pre-wrap leading-relaxed">
-                        {msg.content.split(/(https?:\/\/[^\s]+)/g).map((part, i) => (
-                          part.match(/(https?:\/\/[^\s]+)/g) ? (
-                            <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-current underline decoration-solid decoration-1 break-all hover:text-primary-foreground/80">{part}</a>
-                          ) : part
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </Card>
-
+                <div className="break-words whitespace-pre-wrap leading-relaxed">
+                  {isUser ? (
+                    <p>{msg.content}</p>
+                  ) : (
+                    msg.content.split(/(https?:\/\/[^\s]+)/g).map((part, i) => (
+                      part.match(/(https?:\/\/[^\s]+)/g) ? (
+                        <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-primary underline break-all hover:text-primary-foreground/80">{part}</a>
+                      ) : part
+                    ))
+                  )}
+                </div>
                 {!isUser && assistantFooterText && (
                   <span className="text-tiny text-default-400 mt-1 px-1">
                     {assistantFooterText}
                   </span>
                 )}
               </div>
-
               {isUser && (
-                <div className="flex-shrink-0 mt-1 hidden sm:block">
-                  <div className="w-8 h-8 rounded-full overflow-hidden border border-default-200 bg-default-100 flex items-center justify-center text-default-500">
+                <div className="chat-image avatar">
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-default-500">
                     <UserIcon size={16} />
                   </div>
                 </div>
@@ -123,9 +110,8 @@ export default function MessageList({
         })}
       </AnimatePresence>
 
-
       {isTyping && (
-        <div className="flex w-full justify-start gap-3">
+        <div className="chat chat-start w-full gap-3 items-start">
           <div className="flex-shrink-0 mt-1 hidden sm:block">
             <div className="w-8 h-8 rounded-full overflow-hidden border border-default-200 bg-default-100 flex items-center justify-center">
               {assistantImage ? (
@@ -135,8 +121,9 @@ export default function MessageList({
               )}
             </div>
           </div>
-          <Card className="bg-content2 dark:bg-content1 border-none shadow-sm mr-auto">
-            <div className="p-4 py-3">
+
+          <div className="rounded-lg bg-green-500 text-white p-4 mr-auto">
+            <div className="p-0">
               <span className="inline-block">
                 <span className="dot-typing">
                   <span className="dot" style={{ animationDelay: '0s' }}>.</span>
@@ -145,7 +132,8 @@ export default function MessageList({
                 </span>
               </span>
             </div>
-          </Card>
+          </div>
+
           <style jsx>{`
             .dot-typing {
               display: inline-block;

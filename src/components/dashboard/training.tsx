@@ -446,45 +446,41 @@ export default function TrainingView({ knowledgeBase }: TrainingViewProps) {
 
         {/* Actions */}
         <div className="flex items-center justify-between">
-          <Button
-            variant="outline"
-            onPress={prevStep}
-            isDisabled={currentStep === 1}
-            className="flex items-center gap-2"
+          <button
+            className={`btn btn-outline flex items-center gap-2${currentStep === 1 ? ' btn-disabled' : ''}`}
+            onClick={prevStep}
+            disabled={currentStep === 1}
           >
             <ChevronLeft size={18} />
             Previous
-          </Button>
+          </button>
 
           <div className="flex gap-3">
-            <Button
-              variant="outline"
-              onPress={handleSave}
-              isDisabled={isSaving}
-              className="flex items-center gap-2"
+            <button
+              className={`btn btn-outline flex items-center gap-2${isSaving ? ' btn-disabled' : ''}`}
+              onClick={handleSave}
+              disabled={isSaving}
             >
               {!isSaving && <Save size={18} />}
               {isSaving ? "Saving..." : "Save Progress"}
-            </Button>
+            </button>
 
             {currentStep < STEPS.length ? (
-              <Button
-                variant="primary"
-                onPress={nextStep}
-                className="flex items-center gap-2"
+              <button
+                className="btn btn-primary flex items-center gap-2"
+                onClick={nextStep}
               >
                 Next Step
                 <ChevronRight size={18} />
-              </Button>
+              </button>
             ) : (
-              <Button
-                variant="primary"
-                className="text-white flex items-center gap-2"
-                onPress={handleSave} // Or complete action
+              <button
+                className="btn btn-primary text-white flex items-center gap-2"
+                onClick={handleSave}
               >
                 <Check size={18} />
                 Complete
-              </Button>
+              </button>
             )}
           </div>
         </div>
@@ -512,15 +508,14 @@ export default function TrainingView({ knowledgeBase }: TrainingViewProps) {
                   </div>
                 )}
 
-                <Button
-                  variant="primary"
-                  isDisabled={isTraining}
-                  onPress={handleTrainModel}
-                  className="flex items-center gap-2"
+                <button
+                  className={`btn btn-primary flex items-center gap-2${isTraining ? ' btn-disabled' : ''}`}
+                  onClick={handleTrainModel}
+                  disabled={isTraining}
                 >
                   {!isTraining && <Sparkles size={18} />}
                   {isTraining ? "Training..." : (formData.isModelTrained ? "Retrain Model" : "Train Model Now")}
-                </Button>
+                </button>
               </div>
             </div>
           </Card>

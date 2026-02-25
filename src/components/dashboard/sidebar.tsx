@@ -13,7 +13,7 @@ import {
   Moon,
 } from "lucide-react";
 
-type DashboardViewType = "dashboard" | "training" | "chat" | "profile" | "settings";
+type DashboardViewType = "dashboard" | "training" | "chat" | "profile" | "settings" | "resume";
 
 interface SidebarProps {
   user?: {
@@ -40,15 +40,16 @@ export default function Sidebar({
     { label: "Training", icon: GraduationCap, view: "training" as DashboardViewType },
     { label: "Chat", icon: MessageSquare, view: "chat" as DashboardViewType },
     { label: "Profile", icon: UserRound, view: "profile" as DashboardViewType },
+    { label: "Resume", icon: UserRound, view: "resume" as DashboardViewType },
     { label: "Settings", icon: Settings, view: "settings" as DashboardViewType },
   ];
 
   return (
     <aside
       aria-label="Sidebar navigation"
-      className={`h-full flex-shrink-0 hidden lg:flex flex-col bg-gray-900 border-r border-gray-700 transition-all duration-300 ${
+      className={`h-full flex-shrink-0 flex flex-col bg-gray-900 border-r border-gray-700 transition-all duration-300 ${
         collapsed ? "w-20" : "w-64"
-      }`}
+      } fixed top-0 left-0 z-40 md:relative md:z-0 md:static md:w-64 w-20 md:flex md:h-full min-h-screen md:min-h-0`}
     >
       {/* Header */}
       <div className="px-4 py-5 border-b border-gray-700 flex items-center justify-between gap-2">

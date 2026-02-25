@@ -1,3 +1,22 @@
+# Q&A Knowledge Base API
+
+## POST /api/knowledgebase/qa
+Save a Q&A pair to the logged-in user's knowledge base.
+
+**Body:**
+```
+{
+  "question": "What is your favorite color?",
+  "answer": "Blue"
+}
+```
+
+**Returns:** `{ success: true }` or error.
+
+## GET /api/knowledgebase/qa?userId=USER_ID
+Get all Q&A pairs for a user (by userId).
+
+**Returns:** `{ qaPairs: [ { question, answer }, ... ] }`
 # Velamini - AI-Powered Virtual Assistants Platform
 
 Velamini is a Next.js platform that enables:
