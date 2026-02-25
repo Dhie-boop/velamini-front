@@ -2,21 +2,14 @@
 "use client";
 
 import React, { useState, useRef } from "react";
-import Script from "next/script";
 import { useSession } from "next-auth/react";
 
-// Add TypeScript declaration for window.html2pdf
-declare global {
-  interface Window {
-    html2pdf: any;
-  }
-}
 
 
 const TEMPLATE = {
   id: "modern-yellow",
   name: "Modern Yellow",
-  image: "/image.png",
+  image: "http://localhost:3000/logo.png",
   description: "A modern, clean template with a yellow header.",
 };
 
@@ -88,10 +81,6 @@ export default function Resume() {
       {/* Professional Preview Modal */}
       {showPreview && (
         <>
-          <Script
-            src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"
-            strategy="afterInteractive"
-          />
           <div className="fixed inset-0 z-50 flex flex-col bg-black bg-opacity-40">
             <div className="relative flex flex-col h-full w-full items-center justify-center bg-white rounded-none shadow-lg border border-base-300 p-0">
               <button
@@ -114,32 +103,30 @@ export default function Resume() {
                     <button
                       className="btn btn-success"
                       disabled={downloading}
-                      onClick={() => {
-                        if (!window.html2pdf || !resumeHtml) return;
+                      onClick={async () => {
+                        if (!resumeHtml) return;
                         setDownloading(true);
-                        // Create a small, off-screen div for PDF generation
-                        const tempDiv = document.createElement('div');
-                        tempDiv.style.position = 'fixed';
-                        tempDiv.style.left = '-9999px';
-                        tempDiv.style.top = '0';
-                        tempDiv.style.width = '1px';
-                        tempDiv.style.height = '1px';
-                        tempDiv.innerHTML = resumeHtml;
-                        document.body.appendChild(tempDiv);
-                        window.html2pdf()
-                          .from(tempDiv)
-                          .set({
-                            margin: 0.5,
-                            filename: "resume.pdf",
-                            html2canvas: { scale: 2 },
-                            jsPDF: { unit: "in", format: "a4", orientation: "portrait" },
-                          })
-                          .save();
-                        // Remove the div immediately to avoid UI blocking
-                        setTimeout(() => {
-                          document.body.removeChild(tempDiv);
+                        try {
+                          const response = await fetch("/api/generate-pdf", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ html: resumeHtml }),
+                          });
+                          if (!response.ok) throw new Error("PDF generation failed");
+                          const blob = await response.blob();
+                          const url = window.URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = url;
+                          a.download = "resume.pdf";
+                          document.body.appendChild(a);
+                          a.click();
+                          a.remove();
+                          window.URL.revokeObjectURL(url);
+                        } catch (err) {
+                          setError("PDF download failed");
+                        } finally {
                           setDownloading(false);
-                        }, 1000);
+                        }
                       }}
                     >
                       {downloading ? 'Downloading...' : 'Download PDF'}
