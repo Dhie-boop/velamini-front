@@ -69,21 +69,50 @@ export default function ResumeView({ knowledgeItems = 0 }: { knowledgeItems?: nu
     finally { setLoading(false); setStreaming(false); }
   };
 
-  const download = async () => {
-    if (!resumeHtml) return;
+  // Client-side PDF — uses the browser's built-in PDF engine via a hidden iframe.
+  // Zero network, works offline, no server timeout, instant on any connection.
+  const download = () => {
+    if (!resumeHtml || downloading) return;
     setDownloading(true);
-    try {
-      const res = await fetch("/api/generate-pdf", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ html: resumeHtml }),
-      });
-      if (!res.ok) throw new Error("PDF generation failed");
-      const blob = await res.blob();
-      const url  = URL.createObjectURL(blob);
-      const a    = Object.assign(document.createElement("a"), { href: url, download: "resume.pdf" });
-      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-    } catch { setError("PDF download failed"); }
-    finally { setDownloading(false); }
+
+    // Inject print CSS into the HTML so it looks right in the PDF
+    const printDoc = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>Resume</title>
+<style>
+  @page { margin: 15mm 14mm; size: A4; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  @media print {
+    html, body { width: 210mm; }
+    /* prevent page-break inside a section */
+    section, .section, table, tr { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>${resumeHtml}</body>
+</html>`;
+
+    const iframe = document.createElement("iframe");
+    iframe.style.cssText = "position:fixed;left:-9999px;top:-9999px;width:0;height:0;border:none;";
+    document.body.appendChild(iframe);
+
+    const win = iframe.contentWindow!;
+    iframe.onload = () => {
+      try {
+        win.focus();
+        win.print();
+      } finally {
+        // Give browser time to open the print dialog before removing the iframe
+        setTimeout(() => { document.body.removeChild(iframe); setDownloading(false); }, 1000);
+      }
+    };
+
+    win.document.open();
+    win.document.write(printDoc);
+    win.document.close();
   };
 
   return (
@@ -323,7 +352,7 @@ export default function ResumeView({ knowledgeItems = 0 }: { knowledgeItems?: nu
             {resumeHtml && !loading && !streaming && (
               <div className="rv-modal-foot">
                 <button className="rv-dl-btn" onClick={download} disabled={downloading}>
-                  {downloading ? <><div className="rv-spinner" style={{ width: 13, height: 13, borderWidth: 2 }} /> Downloading…</> : <><Download size={13} /> Download PDF</>}
+                  {downloading ? <><div className="rv-spinner" style={{ width: 13, height: 13, borderWidth: 2 }} /> Preparing…</> : <><Download size={13} /> Save as PDF</>}
                 </button>
               </div>
             )}
