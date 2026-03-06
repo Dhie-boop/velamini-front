@@ -518,8 +518,8 @@ export default function SharedChatPage({ params }: PageProps) {
         .msg-ts{font-size:.62rem;color:var(--c-muted);opacity:.65}
         .msg-bub{padding:9px 13px;border-radius:16px;font-size:.855rem;line-height:1.62;box-shadow:var(--shadow-sm);word-break:break-word;}
         @media(min-width:480px){.msg-bub{padding:10px 14px;font-size:.875rem}}
-        .msg-bub--user{background:var(--c-user-bg);color:var(--c-user-text);border-bottom-right-radius:4px}
-        .msg-bub--bot{background:var(--c-bot-bg);color:var(--c-bot-text);border:1px solid var(--c-border);border-bottom-left-radius:4px}
+        .msg-bub--user{background:var(--c-user-bg);color:var(--c-user-text);-webkit-text-fill-color:var(--c-user-text);border-bottom-right-radius:4px}
+        .msg-bub--bot{background:var(--c-bot-bg);color:var(--c-bot-text);-webkit-text-fill-color:var(--c-bot-text);border:1px solid var(--c-border);border-bottom-left-radius:4px}
         .msg-bub--failed{opacity:.5}
 
         /* Typing */
@@ -551,12 +551,12 @@ export default function SharedChatPage({ params }: PageProps) {
         .ci-area{
           flex:1;background:transparent;border:none;outline:none;
           resize:none;min-height:20px;max-height:120px;
-          font-family:var(--font-body);line-height:1.5;color:var(--c-text);
+          font-family:var(--font-body);line-height:1.5;color:var(--c-text);-webkit-text-fill-color:var(--c-text);
           font-size:max(.85rem, 16px);
         }
         @media(min-width:480px){.ci-area{font-size:.88rem}}
         .ci-area::placeholder{color:var(--c-muted)}
-        .ci-btn{flex-shrink:0;display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:9px;border:none;cursor:pointer;transition:all .16s;}
+        .ci-btn{flex-shrink:0;display:flex;align-items:center;justify-content:center;width:44px;height:44px;min-width:44px;min-height:44px;border-radius:9px;border:none;cursor:pointer;transition:all .16s;-webkit-tap-highlight-color:transparent;}
         .ci-btn--off{background:var(--c-surface-2);color:var(--c-muted);cursor:not-allowed}
         .ci-btn--on{background:var(--c-accent);color:#fff}
         .ci-btn--on:hover{background:var(--c-accent-dim)}
@@ -666,7 +666,7 @@ export default function SharedChatPage({ params }: PageProps) {
 
           {/* Main */}
           <div className="main">
-            <AnimatePresence mode="wait">
+            <AnimatePresence>
               {!hasMessages ? (
                 <motion.div key="welcome" className="welcome"
                   initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
