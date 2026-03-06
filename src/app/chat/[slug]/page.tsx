@@ -18,6 +18,7 @@ type Message = {
   role: "user" | "assistant";
   content: string;
   status?: "sending" | "sent" | "failed";
+  failReason?: "timeout" | "network";
   timestamp?: Date;
 };
 
@@ -74,7 +75,6 @@ export default function SharedChatPage({ params: _ }: PageProps) {
   const slug = (routeParams?.slug as string) ?? "";
   const [virtualSelf, setVirtualSelf]     = useState<{ name: string; image?: string } | null>(null);
   const [virtualSelfId, setVirtualSelfId] = useState<string | null>(null);
-  const [qaPairs, setQaPairs]             = useState<{ question: string; answer: string }[]>([]);
   const [isLoading, setIsLoading]         = useState(true);
   const [error, setError]                 = useState<string | null>(null);
 
@@ -96,11 +96,6 @@ export default function SharedChatPage({ params: _ }: PageProps) {
           clientLog.info("/chat/[slug]", "virtualSelfId set", { slug, userId: data.userId });
           setVirtualSelfId(data.userId);
           setVirtualSelf({ name: data.name, image: data.image });
-          const qaRes = await fetch(`/api/knowledgebase/qa?userId=${data.userId}`);
-          if (qaRes.ok) {
-            const qd = await qaRes.json();
-            setQaPairs(Array.isArray(qd.qaPairs) ? qd.qaPairs : []);
-          }
         } else {
           clientLog.error("/chat/[slug]", "resolve returned no userId", { slug, data });
           throw new Error('Virtual self not found');
@@ -109,7 +104,7 @@ export default function SharedChatPage({ params: _ }: PageProps) {
         const msg = e instanceof Error ? e.message : 'Something went wrong';
         clientLog.error("/chat/[slug]", "resolve failed", { slug, err: msg, href: window.location.href });
         setError(msg);
-        setVirtualSelfId(null); setVirtualSelf(null); setQaPairs([]);
+        setVirtualSelfId(null); setVirtualSelf(null);
       } finally { setIsLoading(false); }
     })();
   }, [slug]);
@@ -233,21 +228,31 @@ export default function SharedChatPage({ params: _ }: PageProps) {
 
     setIsTyping(true); setRetryMessage(null);
 
+    // 60-second hard timeout — iOS Safari silently kills long fetches
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60_000);
+
     try {
       const recentHistory = messages.slice(-6).map(m => ({ role: m.role, content: m.content }));
-      const qaContext = qaPairs.length > 0
-        ? '\n\nUSER Q&A MEMORY:\n' + qaPairs.map(q => `Q: ${q.question}\nA: ${q.answer}`).join("\n\n") : "";
 
       const res = await fetch("/api/chat/shared", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userMessage.content, history: recentHistory, virtualSelfId, qaContext }),
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // keepalive: true tells Safari to NOT kill this request when keyboard dismisses
+        // or the page briefly loses focus — fixes the #1 iPhone blank-reply bug
+        keepalive: true,
+        signal: controller.signal,
+        // qaContext removed — server fetches it from DB, sending it wastes bandwidth
+        body: JSON.stringify({ message: userMessage.content, history: recentHistory, virtualSelfId }),
       });
-      // Read body ONCE — response stream can only be consumed once
+      clearTimeout(timeoutId);
+
+      // Read body ONCE — stream can only be consumed once
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         clientLog.error("/chat/[slug]", "chat/shared non-ok", { status: res.status, virtualSelfId, slug, data });
       }
-      // Merge both state updates into one setMessages call to avoid double render
+      // Merge both updates into one setMessages to avoid double render
       setMessages(prev => [
         ...prev.map(m => m.id === userMessage.id ? { ...m, status: "sent" as const } : m),
         {
@@ -258,8 +263,15 @@ export default function SharedChatPage({ params: _ }: PageProps) {
       ]);
       setIsTyping(false);
     } catch (err) {
-      clientLog.error("/chat/[slug]", "sendMessage fetch threw", { slug, virtualSelfId, err: err instanceof Error ? err.message : String(err) });
-      setMessages(prev => prev.map(m => m.id === userMessage.id ? { ...m, status: "failed" as const } : m));
+      clearTimeout(timeoutId);
+      const isTimeout = err instanceof Error && err.name === "AbortError";
+      clientLog.error("/chat/[slug]", isTimeout ? "sendMessage timed out" : "sendMessage fetch threw",
+        { slug, virtualSelfId, err: err instanceof Error ? err.message : String(err) });
+      setMessages(prev => prev.map(m =>
+        m.id === userMessage.id
+          ? { ...m, status: "failed" as const, failReason: isTimeout ? "timeout" : "network" }
+          : m
+      ));
       setRetryMessage(userMessage);
       setIsTyping(false);
     }
@@ -460,9 +472,17 @@ export default function SharedChatPage({ params: _ }: PageProps) {
         .sb-del svg{width:12px;height:12px}
 
         /* ── Main ── */
-        .main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;min-height:0}
+        .main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;min-height:0;position:relative}
 
-        /* ── Overlays ── */
+        /* Welcome overlay — sits above conversation, fades away on first message */
+        .welcome-overlay{
+          position:absolute;inset:0;z-index:10;
+          display:flex;flex-direction:column;
+          align-items:center;justify-content:center;
+          padding:24px 16px;overflow-y:auto;
+          background:var(--c-bg);
+          -webkit-overflow-scrolling:touch;
+        }
         .overlay{
           position:fixed;inset:0;z-index:50;
           display:flex;align-items:center;justify-content:center;
@@ -502,12 +522,6 @@ export default function SharedChatPage({ params: _ }: PageProps) {
         .dismiss-btn:hover{border-color:var(--c-text);color:var(--c-text)}
 
         /* ── Welcome ── */
-        .welcome{
-          flex:1;display:flex;flex-direction:column;
-          align-items:center;justify-content:center;
-          padding:24px 16px;overflow-y:auto;
-          -webkit-overflow-scrolling:touch;
-        }
         .wc-inner{width:100%;max-width:460px;display:flex;flex-direction:column;align-items:center;text-align:center;}
         .av-wrap{position:relative;margin-bottom:18px}
         .av-ring{
@@ -560,6 +574,21 @@ export default function SharedChatPage({ params: _ }: PageProps) {
         .t-dot:nth-child(2){animation-delay:.15s}
         .t-dot:nth-child(3){animation-delay:.3s}
         @keyframes tdot{0%,80%,100%{transform:translateY(0);opacity:.4}40%{transform:translateY(-5px);opacity:1}}
+
+        /* Retry chip on failed messages */
+        .msg-retry-chip{
+          display:inline-flex;align-items:center;gap:4px;
+          padding:4px 10px;border-radius:20px;
+          border:1px solid #FCA5A5;background:#FEF2F2;color:#EF4444;
+          font-size:.68rem;font-family:var(--font-body);
+          cursor:pointer;margin-top:3px;
+          min-height:28px;transition:background .14s;
+        }
+        .msg-retry-chip:active{background:#FEE2E2}
+        .msg-retry-chip svg{flex-shrink:0}
+        [data-mode="dark"] .msg-retry-chip{
+          background:#2D1515;border-color:#7F1D1D;color:#FCA5A5;
+        }
 
         /* Input bar */
         .input-bar{
@@ -759,6 +788,14 @@ export default function SharedChatPage({ params: _ }: PageProps) {
                               <div className={`msg-bub ${isUser ? 'msg-bub--user' : 'msg-bub--bot'} ${msg.status === 'failed' ? 'msg-bub--failed' : ''}`}>
                                 {msg.content}
                               </div>
+                              {msg.status === 'failed' && (
+                                <button
+                                  className="msg-retry-chip"
+                                  onClick={() => sendMessage(msg)}
+                                  title="Tap to retry">
+                                  <RefreshCw size={10} /> Tap to retry
+                                </button>
+                              )}
                             </div>
                           </motion.div>
                         );
