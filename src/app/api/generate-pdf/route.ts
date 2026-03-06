@@ -69,6 +69,9 @@ export async function POST(req: NextRequest) {
     html = html.replace(/src=['"]\/logo\.png['"]/g, `src="${LOGO_DATA_URL}"`);
   }
 
+  // Fetch all external https:// images and inline as base64 so they appear in the PDF.
+  html = await inlineExternalImages(html);
+
   let browser;
   try {
     browser = await puppeteer.launch({
