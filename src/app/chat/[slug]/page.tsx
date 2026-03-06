@@ -1,7 +1,8 @@
 'use client';
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useTransition } from "react";
 import { useParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { clientLog } from "@/lib/client-logger";
 import {
   Loader2, Send, AlertCircle, RefreshCw,
   Moon, Sun, MessageSquarePlus, PanelLeftOpen, PanelLeftClose, Trash2, Clock, MessageCircle, X
@@ -79,14 +80,20 @@ export default function SharedChatPage({ params: _ }: PageProps) {
 
   // slug comes from useParams() — synchronous, no Suspense needed
   useEffect(() => {
-    if (!slug) return;
+    if (!slug) {
+      clientLog.warn("/chat/[slug]", "slug is empty after useParams", { href: window.location.href });
+      return;
+    }
+    clientLog.info("/chat/[slug]", "Starting resolve", { slug });
     setIsLoading(true); setError(null);
     (async () => {
       try {
         const res  = await fetch(`/api/swag/resolve?slug=${encodeURIComponent(slug)}`);
-        if (!res.ok) throw new Error('Failed to load virtual self');
+        clientLog.info("/chat/[slug]", "resolve response", { slug, status: res.status });
+        if (!res.ok) throw new Error(`resolve ${res.status}`);
         const data = await res.json();
         if (data?.userId) {
+          clientLog.info("/chat/[slug]", "virtualSelfId set", { slug, userId: data.userId });
           setVirtualSelfId(data.userId);
           setVirtualSelf({ name: data.name, image: data.image });
           const qaRes = await fetch(`/api/knowledgebase/qa?userId=${data.userId}`);
@@ -94,9 +101,14 @@ export default function SharedChatPage({ params: _ }: PageProps) {
             const qd = await qaRes.json();
             setQaPairs(Array.isArray(qd.qaPairs) ? qd.qaPairs : []);
           }
-        } else throw new Error('Virtual self not found');
+        } else {
+          clientLog.error("/chat/[slug]", "resolve returned no userId", { slug, data });
+          throw new Error('Virtual self not found');
+        }
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Something went wrong');
+        const msg = e instanceof Error ? e.message : 'Something went wrong';
+        clientLog.error("/chat/[slug]", "resolve failed", { slug, err: msg, href: window.location.href });
+        setError(msg);
         setVirtualSelfId(null); setVirtualSelf(null); setQaPairs([]);
       } finally { setIsLoading(false); }
     })();
@@ -114,6 +126,8 @@ export default function SharedChatPage({ params: _ }: PageProps) {
   const [sessions, setSessions]         = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const [, startTransition] = useTransition();
+  const lsWriteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const t = localStorage.getItem('theme');
@@ -138,22 +152,30 @@ export default function SharedChatPage({ params: _ }: PageProps) {
     } catch {}
   }, [slug]);
 
+  // Debounced localStorage write — avoids blocking main thread on every keystroke/message
   useEffect(() => {
-    if (!slug) return; // FIX 3b: Don't write to localStorage with empty slug key
-    localStorage.setItem(`vela_sessions_${slug}`, JSON.stringify(sessions));
+    if (!slug) return;
+    if (lsWriteTimer.current) clearTimeout(lsWriteTimer.current);
+    lsWriteTimer.current = setTimeout(() => {
+      try { localStorage.setItem(`vela_sessions_${slug}`, JSON.stringify(sessions)); } catch {}
+    }, 400);
+    return () => { if (lsWriteTimer.current) clearTimeout(lsWriteTimer.current); };
   }, [sessions, slug]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
+  // Update session history in a deferred (non-urgent) transition to avoid blocking input
   useEffect(() => {
     if (!activeSessionId || messages.length === 0) return;
-    setSessions(prev => prev.map(s =>
-      s.id === activeSessionId
-        ? { ...s, messages, title: messages[0]?.content.slice(0, 42) || s.title }
-        : s
-    ));
+    startTransition(() => {
+      setSessions(prev => prev.map(s =>
+        s.id === activeSessionId
+          ? { ...s, messages, title: messages[0]?.content.slice(0, 42) || s.title }
+          : s
+      ));
+    });
   }, [messages]);
 
   // FIX 4: Only lock body scroll on mobile (sidebar overlay), not always
@@ -190,6 +212,7 @@ export default function SharedChatPage({ params: _ }: PageProps) {
 
     // FIX 5: Hard guard — never send if virtualSelfId isn't ready yet
     if (!virtualSelfId) {
+      clientLog.error("/chat/[slug]", "sendMessage called with null virtualSelfId", { slug, isLoading, error });
       setError("Still loading — please wait a moment and try again.");
       return;
     }
@@ -215,21 +238,31 @@ export default function SharedChatPage({ params: _ }: PageProps) {
       const qaContext = qaPairs.length > 0
         ? '\n\nUSER Q&A MEMORY:\n' + qaPairs.map(q => `Q: ${q.question}\nA: ${q.answer}`).join("\n\n") : "";
 
-      const res  = await fetch("/api/chat/shared", {
+      const res = await fetch("/api/chat/shared", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: userMessage.content, history: recentHistory, virtualSelfId, qaContext }),
       });
-      const data = await res.json();
-      setMessages(prev => prev.map(m => m.id === userMessage.id ? { ...m, status: "sent" } : m));
-      setMessages(prev => [...prev, {
-        id: Date.now() + 1, role: "assistant",
-        content: data.text ?? data.error ?? "Sorry, something went wrong.",
-        timestamp: new Date(),
-      }]);
-    } catch {
-      setMessages(prev => prev.map(m => m.id === userMessage.id ? { ...m, status: "failed" } : m));
+      // Read body ONCE — response stream can only be consumed once
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        clientLog.error("/chat/[slug]", "chat/shared non-ok", { status: res.status, virtualSelfId, slug, data });
+      }
+      // Merge both state updates into one setMessages call to avoid double render
+      setMessages(prev => [
+        ...prev.map(m => m.id === userMessage.id ? { ...m, status: "sent" as const } : m),
+        {
+          id: Date.now() + 1, role: "assistant" as const,
+          content: data.text ?? data.error ?? "Sorry, something went wrong.",
+          timestamp: new Date(),
+        }
+      ]);
+      setIsTyping(false);
+    } catch (err) {
+      clientLog.error("/chat/[slug]", "sendMessage fetch threw", { slug, virtualSelfId, err: err instanceof Error ? err.message : String(err) });
+      setMessages(prev => prev.map(m => m.id === userMessage.id ? { ...m, status: "failed" as const } : m));
       setRetryMessage(userMessage);
-    } finally { setIsTyping(false); }
+      setIsTyping(false);
+    }
   };
 
   const hasMessages = messages.length > 0;
