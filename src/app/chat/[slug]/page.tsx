@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, use } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Loader2, Send, AlertCircle, RefreshCw,
@@ -37,7 +37,6 @@ interface ChatInputProps {
 function ChatInput({ input, setInput, onSend, isTyping, placeholder }: ChatInputProps) {
   const ref = useRef<HTMLTextAreaElement>(null);
 
-  // Auto-resize textarea
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -49,6 +48,7 @@ function ChatInput({ input, setInput, onSend, isTyping, placeholder }: ChatInput
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSend(); }
   };
   const isDisabled = !input.trim() || isTyping;
+
   return (
     <div className="ci-inner">
       <textarea
@@ -68,14 +68,9 @@ function ChatInput({ input, setInput, onSend, isTyping, placeholder }: ChatInput
 }
 
 export default function SharedChatPage({ params }: PageProps) {
-  const [slug, setSlug] = useState("");
-  useEffect(() => {
-    (async () => {
-      if (params && typeof (params as any).then === "function") {
-        const r = await (params as any); setSlug(r.slug);
-      } else if ((params as any)?.slug) setSlug((params as any).slug);
-    })();
-  }, [params]);
+  // FIX 1: Use React.use() to unwrap the params Promise synchronously
+  // This is the correct Next.js 15 way — avoids the async race condition
+  const { slug } = use(params);
 
   const [virtualSelf, setVirtualSelf]     = useState<{ name: string; image?: string } | null>(null);
   const [virtualSelfId, setVirtualSelfId] = useState<string | null>(null);
@@ -83,6 +78,7 @@ export default function SharedChatPage({ params }: PageProps) {
   const [isLoading, setIsLoading]         = useState(true);
   const [error, setError]                 = useState<string | null>(null);
 
+  // FIX 2: slug is now always available on first render — no empty string race
   useEffect(() => {
     if (!slug) return;
     setIsLoading(true); setError(null);
@@ -134,6 +130,7 @@ export default function SharedChatPage({ params }: PageProps) {
     localStorage.setItem('theme', next ? 'dark' : 'light');
   };
 
+  // FIX 3: Guard localStorage reads/writes — only run when slug is a real value
   useEffect(() => {
     if (!slug) return;
     try {
@@ -143,7 +140,7 @@ export default function SharedChatPage({ params }: PageProps) {
   }, [slug]);
 
   useEffect(() => {
-    if (!slug) return;
+    if (!slug) return; // FIX 3b: Don't write to localStorage with empty slug key
     localStorage.setItem(`vela_sessions_${slug}`, JSON.stringify(sessions));
   }, [sessions, slug]);
 
@@ -160,9 +157,11 @@ export default function SharedChatPage({ params }: PageProps) {
     ));
   }, [messages]);
 
-  // Lock body scroll when sidebar is open on mobile
+  // FIX 4: Only lock body scroll on mobile (sidebar overlay), not always
+  // And always clean up on unmount to prevent freeze
   useEffect(() => {
-    if (sidebarOpen) {
+    const isMobile = window.innerWidth <= 640;
+    if (sidebarOpen && isMobile) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
@@ -190,6 +189,12 @@ export default function SharedChatPage({ params }: PageProps) {
     const content = messageToRetry?.content || input.trim();
     if (!content) return;
 
+    // FIX 5: Hard guard — never send if virtualSelfId isn't ready yet
+    if (!virtualSelfId) {
+      setError("Still loading — please wait a moment and try again.");
+      return;
+    }
+
     let sessionId = activeSessionId;
     if (!sessionId) {
       sessionId = `session_${Date.now()}`;
@@ -208,10 +213,6 @@ export default function SharedChatPage({ params }: PageProps) {
 
     try {
       const recentHistory = messages.slice(-6).map(m => ({ role: m.role, content: m.content }));
-      if (!virtualSelfId) {
-        setMessages(prev => prev.map(m => m.id === userMessage.id ? { ...m, status: "failed" } : m));
-        setRetryMessage(userMessage); setIsTyping(false); return;
-      }
       const qaContext = qaPairs.length > 0
         ? '\n\nUSER Q&A MEMORY:\n' + qaPairs.map(q => `Q: ${q.question}\nA: ${q.answer}`).join("\n\n") : "";
 
@@ -271,10 +272,9 @@ export default function SharedChatPage({ params }: PageProps) {
         }
 
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-        html,body{height:100%;overflow:hidden}
+        html,body{height:100%}
         body{font-family:var(--font-body);background:var(--c-bg);color:var(--c-text)}
 
-        /* ── Shell ── */
         .page{display:flex;flex-direction:column;height:100dvh;overflow:hidden;background:var(--c-bg)}
         .body-row{display:flex;flex:1;overflow:hidden;position:relative;min-height:0}
 
@@ -294,19 +294,15 @@ export default function SharedChatPage({ params }: PageProps) {
         .nb-name{
           font-family:var(--font-display);font-size:.95rem;font-weight:600;
           color:var(--c-text);letter-spacing:-.01em;
-          white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-          min-width:0;
+          white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;
         }
         .nb-badge{
           font-size:.58rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
           background:var(--c-accent-soft);color:var(--c-accent);
           padding:2px 7px;border-radius:20px;flex-shrink:0;
         }
-        /* Hide badge on very small screens */
         @media(max-width:360px){.nb-badge{display:none}}
-
         .nb-right{display:flex;align-items:center;gap:5px;flex-shrink:0}
-
         .icon-btn{
           display:flex;align-items:center;justify-content:center;
           width:32px;height:32px;border-radius:8px;
@@ -315,30 +311,23 @@ export default function SharedChatPage({ params }: PageProps) {
         }
         .icon-btn:hover{color:var(--c-accent);border-color:var(--c-accent);background:var(--c-accent-soft)}
         .icon-btn svg{width:14px;height:14px}
-
-        /* Feedback button — pill on desktop, icon on mobile */
         .nb-feedback{
-          display:flex;align-items:center;gap:5px;
-          height:32px;border-radius:8px;
+          display:flex;align-items:center;gap:5px;height:32px;border-radius:8px;
           border:1px solid var(--c-accent);background:var(--c-accent-soft);
           color:var(--c-accent);cursor:pointer;
           font-size:.75rem;font-weight:600;font-family:var(--font-body);
-          transition:all .15s;flex-shrink:0;
-          padding:0 11px;
+          transition:all .15s;flex-shrink:0;padding:0 11px;
         }
         .nb-feedback:hover{background:var(--c-accent);color:#fff;transform:scale(1.03)}
         .nb-feedback svg{width:13px;height:13px}
-        /* On mobile collapse to icon-only */
         @media(max-width:480px){
           .nb-feedback{width:32px;padding:0;justify-content:center}
           .nb-feedback-label{display:none}
         }
-
         .nb-divider{width:1px;height:18px;background:var(--c-border);flex-shrink:0}
         @media(max-width:400px){.nb-divider{display:none}}
 
-        /* ── Sidebar — OVERLAY on mobile, inline on desktop ── */
-        /* Desktop: inline push */
+        /* ── Sidebar desktop inline ── */
         .sidebar-desktop{
           flex-shrink:0;overflow:hidden;
           background:var(--c-sidebar);border-right:1px solid var(--c-border);
@@ -348,7 +337,7 @@ export default function SharedChatPage({ params }: PageProps) {
         .sidebar-desktop--open{width:260px}
         .sidebar-desktop--closed{width:0}
 
-        /* Mobile: full overlay drawer */
+        /* ── Sidebar mobile overlay ── */
         .sidebar-overlay{
           display:none;
           position:fixed;inset:0;z-index:100;
@@ -366,7 +355,6 @@ export default function SharedChatPage({ params }: PageProps) {
           display:flex;flex-direction:column;
           box-shadow:var(--shadow-md);
         }
-
         @media(max-width:640px){
           .sidebar-desktop{display:none!important}
           .sidebar-overlay{display:block}
@@ -375,7 +363,7 @@ export default function SharedChatPage({ params }: PageProps) {
           .sidebar-overlay{display:none!important}
         }
 
-        /* Shared sidebar internals */
+        /* Sidebar internals */
         .sb-head{
           display:flex;align-items:center;justify-content:space-between;
           padding:14px 14px 10px;border-bottom:1px solid var(--c-border);flex-shrink:0;
@@ -398,7 +386,6 @@ export default function SharedChatPage({ params }: PageProps) {
         }
         .sb-close-btn:hover{color:var(--c-text);border-color:var(--c-text)}
         .sb-close-btn svg{width:13px;height:13px}
-
         .sb-list{
           flex:1;overflow-y:auto;padding:8px;
           display:flex;flex-direction:column;gap:3px;
@@ -407,29 +394,21 @@ export default function SharedChatPage({ params }: PageProps) {
         }
         .sb-list::-webkit-scrollbar{width:3px}
         .sb-list::-webkit-scrollbar-thumb{background:var(--c-border);border-radius:3px}
-
         .sb-empty{
           display:flex;flex-direction:column;align-items:center;justify-content:center;
           gap:10px;flex:1;color:var(--c-muted);font-size:.78rem;opacity:.65;
           text-align:center;padding:24px;
         }
         .sb-empty svg{opacity:.4}
-
         .sb-item{
-          display:flex;align-items:center;gap:8px;
-          padding:10px 10px;border-radius:9px;
-          cursor:pointer;transition:background .12s;
-          border:1px solid transparent;min-width:0;
-          /* Larger tap target on mobile */
-          min-height:44px;
+          display:flex;align-items:center;gap:8px;padding:10px;border-radius:9px;
+          cursor:pointer;transition:background .12s;border:1px solid transparent;
+          min-width:0;min-height:44px;
         }
         .sb-item:hover,.sb-item:active{background:var(--c-surface-2)}
         .sb-item--active{background:var(--c-accent-soft);border-color:color-mix(in srgb,var(--c-accent) 35%,transparent)}
         .sb-text{flex:1;min-width:0}
-        .sb-ttl{
-          font-size:.79rem;font-weight:500;color:var(--c-text);
-          white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-        }
+        .sb-ttl{font-size:.79rem;font-weight:500;color:var(--c-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
         .sb-item--active .sb-ttl{color:var(--c-accent)}
         .sb-ts{font-size:.65rem;color:var(--c-muted);margin-top:2px}
         .sb-del{
@@ -439,7 +418,6 @@ export default function SharedChatPage({ params }: PageProps) {
           opacity:0;
         }
         .sb-item:hover .sb-del,.sb-item:active .sb-del{opacity:1}
-        /* Always show on touch devices */
         @media(hover:none){.sb-del{opacity:.4}}
         .sb-del:hover,.sb-del:active{background:#FEE2E2;color:#E53E3E;opacity:1}
         .sb-del svg{width:12px;height:12px}
@@ -465,16 +443,26 @@ export default function SharedChatPage({ params }: PageProps) {
         .ov-spin{color:var(--c-accent);animation:spin 1s linear infinite}
         @keyframes spin{to{transform:rotate(360deg)}}
         .ov-title{font-family:var(--font-display);font-size:1.1rem;color:var(--c-text)}
-        .ov-sub{font-size:.77rem;color:var(--c-muted);margin-top:2px}
+        .ov-sub{font-size:.77rem;color:var(--c-muted);margin-top:4px}
         .err-icon{width:50px;height:50px;border-radius:50%;background:#FEE2E2;display:flex;align-items:center;justify-content:center;color:#E53E3E}
         .retry-btn{
           display:inline-flex;align-items:center;gap:6px;padding:9px 20px;border-radius:10px;
           background:var(--c-accent);color:#fff;border:none;cursor:pointer;
           font-size:.84rem;font-family:var(--font-body);
           transition:background .15s,transform .15s;
-          min-height:44px;
+          min-height:44px;margin-top:10px;
         }
         .retry-btn:hover{background:var(--c-accent-dim);transform:scale(1.02)}
+
+        /* FIX: dismiss button on error overlay so page never freezes */
+        .dismiss-btn{
+          display:inline-flex;align-items:center;gap:5px;padding:7px 16px;
+          border-radius:9px;border:1px solid var(--c-border);
+          background:var(--c-surface-2);color:var(--c-muted);
+          font-size:.78rem;font-family:var(--font-body);cursor:pointer;
+          transition:all .14s;min-height:40px;
+        }
+        .dismiss-btn:hover{border-color:var(--c-text);color:var(--c-text)}
 
         /* ── Welcome ── */
         .welcome{
@@ -483,10 +471,7 @@ export default function SharedChatPage({ params }: PageProps) {
           padding:24px 16px;overflow-y:auto;
           -webkit-overflow-scrolling:touch;
         }
-        .wc-inner{
-          width:100%;max-width:460px;
-          display:flex;flex-direction:column;align-items:center;text-align:center;
-        }
+        .wc-inner{width:100%;max-width:460px;display:flex;flex-direction:column;align-items:center;text-align:center;}
         .av-wrap{position:relative;margin-bottom:18px}
         .av-ring{
           width:82px;height:82px;border-radius:50%;padding:3px;
@@ -496,12 +481,7 @@ export default function SharedChatPage({ params }: PageProps) {
         @media(max-width:360px){.av-ring{width:68px;height:68px}}
         .av-img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;background:var(--c-surface-2)}
         .av-dot{position:absolute;bottom:4px;right:4px;width:13px;height:13px;border-radius:50%;background:#22C55E;border:2px solid var(--c-bg)}
-        .wc-name{
-          font-family:var(--font-display);
-          font-size:clamp(1.4rem,5vw,1.9rem);
-          font-weight:600;letter-spacing:-.02em;
-          color:var(--c-text);margin-bottom:5px;
-        }
+        .wc-name{font-family:var(--font-display);font-size:clamp(1.4rem,5vw,1.9rem);font-weight:600;letter-spacing:-.02em;color:var(--c-text);margin-bottom:5px;}
         .wc-sub{font-size:.75rem;color:var(--c-muted);margin-bottom:10px;letter-spacing:.05em;text-transform:uppercase}
         .wc-line{width:36px;height:2px;background:var(--c-accent);border-radius:2px;margin:0 auto 22px}
 
@@ -517,21 +497,12 @@ export default function SharedChatPage({ params }: PageProps) {
         @media(min-width:480px){.msg-list{padding:20px 16px}}
         .msg-list::-webkit-scrollbar{width:3px}
         .msg-list::-webkit-scrollbar-thumb{background:var(--c-border);border-radius:3px}
-        .msgs-inner{
-          width:100%;max-width:620px;
-          display:flex;flex-direction:column;gap:12px;padding-bottom:8px;
-        }
+        .msgs-inner{width:100%;max-width:620px;display:flex;flex-direction:column;gap:12px;padding-bottom:8px;}
 
-        /* ── Message rows ── */
+        /* Message rows */
         .msg-row{display:flex;align-items:flex-end;gap:7px}
         .msg-row--user{flex-direction:row-reverse}
-        .msg-av{
-          width:26px;height:26px;border-radius:50%;
-          object-fit:cover;flex-shrink:0;
-          border:1.5px solid var(--c-border);
-          background:var(--c-surface-2);
-          /* Hide avatar on very small screens to save space */
-        }
+        .msg-av{width:26px;height:26px;border-radius:50%;object-fit:cover;flex-shrink:0;border:1.5px solid var(--c-border);background:var(--c-surface-2);}
         @media(max-width:360px){.msg-av{display:none}}
         .msg-col{display:flex;flex-direction:column;gap:3px;max-width:80%}
         @media(min-width:480px){.msg-col{max-width:74%}}
@@ -539,32 +510,23 @@ export default function SharedChatPage({ params }: PageProps) {
         .msg-meta{display:flex;align-items:center;gap:4px}
         .msg-who{font-size:.67rem;font-weight:600;color:var(--c-muted);letter-spacing:.02em}
         .msg-ts{font-size:.62rem;color:var(--c-muted);opacity:.65}
-        .msg-bub{
-          padding:9px 13px;border-radius:16px;
-          font-size:.855rem;line-height:1.62;
-          box-shadow:var(--shadow-sm);word-break:break-word;
-        }
+        .msg-bub{padding:9px 13px;border-radius:16px;font-size:.855rem;line-height:1.62;box-shadow:var(--shadow-sm);word-break:break-word;}
         @media(min-width:480px){.msg-bub{padding:10px 14px;font-size:.875rem}}
         .msg-bub--user{background:var(--c-user-bg);color:var(--c-user-text);border-bottom-right-radius:4px}
         .msg-bub--bot{background:var(--c-bot-bg);color:var(--c-bot-text);border:1px solid var(--c-border);border-bottom-left-radius:4px}
         .msg-bub--failed{opacity:.5}
 
-        /* ── Typing ── */
+        /* Typing */
         .t-row{display:flex;align-items:flex-end;gap:7px}
-        .t-dots{
-          display:flex;align-items:center;gap:4px;padding:11px 14px;
-          background:var(--c-bot-bg);border:1px solid var(--c-border);
-          border-radius:16px;border-bottom-left-radius:4px;box-shadow:var(--shadow-sm);
-        }
+        .t-dots{display:flex;align-items:center;gap:4px;padding:11px 14px;background:var(--c-bot-bg);border:1px solid var(--c-border);border-radius:16px;border-bottom-left-radius:4px;box-shadow:var(--shadow-sm);}
         .t-dot{width:5px;height:5px;border-radius:50%;background:var(--c-accent);animation:tdot .9s ease-in-out infinite}
         .t-dot:nth-child(2){animation-delay:.15s}
         .t-dot:nth-child(3){animation-delay:.3s}
         @keyframes tdot{0%,80%,100%{transform:translateY(0);opacity:.4}40%{transform:translateY(-5px);opacity:1}}
 
-        /* ── Input bar ── */
+        /* Input bar */
         .input-bar{
-          border-top:1px solid var(--c-border);
-          background:var(--c-surface);
+          border-top:1px solid var(--c-border);background:var(--c-surface);
           padding:10px 12px;
           padding-bottom:max(10px, env(safe-area-inset-bottom));
           display:flex;justify-content:center;flex-shrink:0;
@@ -572,11 +534,10 @@ export default function SharedChatPage({ params }: PageProps) {
         @media(min-width:480px){.input-bar{padding:12px 20px}}
         .input-bar-inner{width:100%;max-width:620px}
 
-        /* ── ChatInput ── */
+        /* ChatInput */
         .ci-inner{
-          display:flex;align-items:flex-end;gap:8px;
-          padding:9px 11px;background:var(--c-surface);
-          border-radius:14px;border:1.5px solid var(--c-border);
+          display:flex;align-items:flex-end;gap:8px;padding:9px 11px;
+          background:var(--c-surface);border-radius:14px;border:1.5px solid var(--c-border);
           transition:border-color .18s,box-shadow .18s;
         }
         @media(min-width:480px){.ci-inner{padding:11px 13px;gap:10px}}
@@ -584,17 +545,12 @@ export default function SharedChatPage({ params }: PageProps) {
         .ci-area{
           flex:1;background:transparent;border:none;outline:none;
           resize:none;min-height:20px;max-height:120px;
-          font-family:var(--font-body);font-size:.85rem;line-height:1.5;color:var(--c-text);
-          /* Prevent iOS zoom on focus */
+          font-family:var(--font-body);line-height:1.5;color:var(--c-text);
           font-size:max(.85rem, 16px);
         }
         @media(min-width:480px){.ci-area{font-size:.88rem}}
         .ci-area::placeholder{color:var(--c-muted)}
-        .ci-btn{
-          flex-shrink:0;display:flex;align-items:center;justify-content:center;
-          width:34px;height:34px;border-radius:9px;border:none;cursor:pointer;
-          transition:all .16s;
-        }
+        .ci-btn{flex-shrink:0;display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:9px;border:none;cursor:pointer;transition:all .16s;}
         .ci-btn--off{background:var(--c-surface-2);color:var(--c-muted);cursor:not-allowed}
         .ci-btn--on{background:var(--c-accent);color:#fff}
         .ci-btn--on:hover{background:var(--c-accent-dim)}
@@ -610,13 +566,16 @@ export default function SharedChatPage({ params }: PageProps) {
             <motion.div className="overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <div className="ov-card">
                 <Loader2 size={28} className="ov-spin" />
-                <div><p className="ov-title">One moment…</p><p className="ov-sub">Waking up your virtual self</p></div>
+                <div>
+                  <p className="ov-title">One moment…</p>
+                  <p className="ov-sub">Waking up your virtual self</p>
+                </div>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Error overlay */}
+        {/* Error overlay — FIX: always has a dismiss button so page never freezes */}
         <AnimatePresence>
           {error && !isLoading && (
             <motion.div className="overlay" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
@@ -624,9 +583,15 @@ export default function SharedChatPage({ params }: PageProps) {
                 <div className="err-icon"><AlertCircle size={22} /></div>
                 <div>
                   <p className="ov-title">Something went wrong</p>
-                  <p className="ov-sub" style={{ marginBottom: 14 }}>{error}</p>
-                  <button className="retry-btn" onClick={() => window.location.reload()}>
+                  <p className="ov-sub">{error}</p>
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
+                  <button className="retry-btn" onClick={() => { setError(null); window.location.reload(); }}>
                     <RefreshCw size={13} /> Try again
+                  </button>
+                  {/* Dismiss without reload — unblocks the UI */}
+                  <button className="dismiss-btn" onClick={() => setError(null)}>
+                    Dismiss
                   </button>
                 </div>
               </div>
@@ -634,15 +599,13 @@ export default function SharedChatPage({ params }: PageProps) {
           )}
         </AnimatePresence>
 
-        {/* ── Navbar ── */}
+        {/* Navbar */}
         <nav className="navbar">
           <div className="nb-left">
             <button className="icon-btn" onClick={() => setSidebarOpen(o => !o)} title="Toggle history">
               {sidebarOpen ? <PanelLeftClose size={14} /> : <PanelLeftOpen size={14} />}
             </button>
-            <div className="nb-logo">
-              <img src="/logo.png" alt="Logo" />
-            </div>
+            <div className="nb-logo"><img src="/logo.png" alt="Logo" /></div>
             <span className="nb-name">{virtualSelf?.name ?? 'Virtual Self'}</span>
             {!isLoading && !error && virtualSelf && <span className="nb-badge">Online</span>}
           </div>
@@ -652,29 +615,22 @@ export default function SharedChatPage({ params }: PageProps) {
               <span className="nb-feedback-label">Feedback</span>
             </button>
             <div className="nb-divider" />
-            <button className="icon-btn" onClick={startNewSession} title="New chat">
-              <MessageSquarePlus size={14} />
-            </button>
+            <button className="icon-btn" onClick={startNewSession} title="New chat"><MessageSquarePlus size={14} /></button>
             <button className="icon-btn" onClick={toggleTheme} title="Toggle theme">
               {isDarkMode ? <Sun size={14} /> : <Moon size={14} />}
             </button>
           </div>
         </nav>
 
-        {/* ── Body ── */}
+        {/* Body */}
         <div className="body-row">
 
           {/* Desktop inline sidebar */}
           <div className={`sidebar-desktop ${sidebarOpen ? 'sidebar-desktop--open' : 'sidebar-desktop--closed'}`}>
             <SidebarContents
-              sessions={sessions}
-              activeSessionId={activeSessionId}
-              onNew={startNewSession}
-              onOpen={openSession}
-              onDelete={deleteSession}
-              onClose={() => setSidebarOpen(false)}
-              formatDate={formatDate}
-              showClose={false}
+              sessions={sessions} activeSessionId={activeSessionId}
+              onNew={startNewSession} onOpen={openSession} onDelete={deleteSession}
+              onClose={() => setSidebarOpen(false)} formatDate={formatDate} showClose={false}
             />
           </div>
 
@@ -693,43 +649,33 @@ export default function SharedChatPage({ params }: PageProps) {
                   transition={{ type: 'spring', stiffness: 320, damping: 32 }}
                 >
                   <SidebarContents
-                    sessions={sessions}
-                    activeSessionId={activeSessionId}
-                    onNew={startNewSession}
-                    onOpen={openSession}
-                    onDelete={deleteSession}
-                    onClose={() => setSidebarOpen(false)}
-                    formatDate={formatDate}
-                    showClose={true}
+                    sessions={sessions} activeSessionId={activeSessionId}
+                    onNew={startNewSession} onOpen={openSession} onDelete={deleteSession}
+                    onClose={() => setSidebarOpen(false)} formatDate={formatDate} showClose={true}
                   />
                 </motion.div>
               </div>
             )}
           </AnimatePresence>
 
-          {/* ── Main ── */}
+          {/* Main */}
           <div className="main">
             <AnimatePresence mode="wait">
               {!hasMessages ? (
-                <motion.div
-                  key="welcome" className="welcome"
+                <motion.div key="welcome" className="welcome"
                   initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -12 }}
-                  transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-                >
+                  transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}>
                   {!isLoading && !error && virtualSelf && (
                     <div className="wc-inner">
                       <motion.div className="av-wrap"
-                        initial={{ scale: 0.8, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        transition={{ type: "spring", stiffness: 280, damping: 22, delay: 0.05 }}
-                      >
+                        initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+                        transition={{ type: "spring", stiffness: 280, damping: 22, delay: 0.05 }}>
                         <div className="av-ring">
                           <img src={virtualSelf.image || "/logo.png"} alt={virtualSelf.name} className="av-img" />
                         </div>
                         <div className="av-dot" />
                       </motion.div>
-
                       <motion.h1 className="wc-name"
                         initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.11 }}>
                         {virtualSelf.name}
@@ -751,7 +697,6 @@ export default function SharedChatPage({ params }: PageProps) {
               ) : (
                 <motion.div key="conversation" className="conversation"
                   initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18 }}>
-
                   <div className="msg-list">
                     <div className="msgs-inner">
                       {messages.map(msg => {
@@ -766,8 +711,7 @@ export default function SharedChatPage({ params }: PageProps) {
                             className={`msg-row ${isUser ? 'msg-row--user' : ''}`}
                             initial={{ opacity: 0, y: 10, scale: 0.97 }}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
-                            transition={{ type: "spring", stiffness: 340, damping: 26 }}
-                          >
+                            transition={{ type: "spring", stiffness: 340, damping: 26 }}>
                             <img src={avatar} alt={name} className="msg-av" />
                             <div className="msg-col">
                               <div className="msg-meta">
@@ -782,7 +726,6 @@ export default function SharedChatPage({ params }: PageProps) {
                           </motion.div>
                         );
                       })}
-
                       <AnimatePresence>
                         {isTyping && (
                           <motion.div className="t-row"
@@ -797,7 +740,6 @@ export default function SharedChatPage({ params }: PageProps) {
                       <div ref={bottomRef} />
                     </div>
                   </div>
-
                   <div className="input-bar">
                     <div className="input-bar-inner">
                       <ChatInput input={input} setInput={setInput} onSend={sendMessage}
@@ -821,7 +763,6 @@ export default function SharedChatPage({ params }: PageProps) {
   );
 }
 
-/* ── Shared sidebar contents (used in both desktop & mobile drawer) ── */
 function SidebarContents({
   sessions, activeSessionId, onNew, onOpen, onDelete, onClose, formatDate, showClose
 }: {
@@ -839,9 +780,7 @@ function SidebarContents({
       <div className="sb-head">
         <div className="sb-head-left">
           {showClose && (
-            <button className="sb-close-btn" onClick={onClose}>
-              <X size={13} />
-            </button>
+            <button className="sb-close-btn" onClick={onClose}><X size={13} /></button>
           )}
           <span className="sb-title">History</span>
         </div>
