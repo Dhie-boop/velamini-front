@@ -80,15 +80,18 @@ export async function POST(req: NextRequest) {
       email: user.email || undefined,
       image: user.image || undefined,
       location: kb.currentLocation || undefined,
-      phone: null, // Add if you have a phone field
+      phone: null,
       linkedin: kb.socialLinks || undefined,
       summary: kb.bio || undefined,
       experience: kb.experience || undefined,
       education: kb.education || undefined,
-      certifications: kb.awards || undefined, // or kb.certifications if you add it
+      certifications: kb.awards || undefined,
       skills: kb.skills || undefined,
       achievements: kb.awards || undefined,
     };
+
+    // Existing CV text uploaded by the user (optional — enhances output quality)
+    const existingCv = kb.rawContent?.trim() ?? null;
 
     // Prepare prompt for DeepSeek LLM
     const resolvedStyle  = template || "modern";
@@ -96,7 +99,12 @@ export async function POST(req: NextRequest) {
     const resolvedFocus  = focus   || "Balanced";
     const targetRole     = jobTitle ? `Target Role: ${jobTitle}` : "";
 
+    const cvSection = existingCv
+      ? `\nEXISTING CV (uploaded by user — use this to enrich details, fill gaps, match their real style):\n${existingCv.slice(0, 3000)}\n`
+      : "";
+
     const prompt = `You are an expert resume writer and designer. Given the following user data, write a professional resume in HTML.
+${cvSection}
 
 STYLE PREFERENCES:
 - Visual Style: ${resolvedStyle} (modern=clean accent colours, classic=traditional, minimal=ultra-clean white space, bold=strong headers high impact)

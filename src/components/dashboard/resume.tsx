@@ -5,7 +5,7 @@ import {
   Sparkles, FileText, Download, RefreshCw, Copy, Check,
   ChevronDown, Loader2, Zap, Brain, User, Briefcase,
   GraduationCap, Code, Star, Globe, Mail, Phone, MapPin,
-  AlertCircle, ArrowRight
+  AlertCircle, ArrowRight, Upload, FileCheck, X as XIcon
 } from "lucide-react";
 
 /* ─── Types ────────────────────────────────────────────────── */
@@ -140,6 +140,44 @@ export default function ResumeView({ user, knowledgeBase, knowledgeItems: _ }: R
   const [jobTitle, setJobTitle]       = useState("");
   const [showConfig, setShowConfig]   = useState(true);
   const [downloading, setDownloading] = useState(false);
+  const [cvPreview, setCvPreview]     = useState<string | null>(null);
+  const [cvUploading, setCvUploading] = useState(false);
+  const [cvError, setCvError]         = useState<string | null>(null);
+  const cvInputRef                    = useRef<HTMLInputElement>(null);
+
+  const handleCvUpload = useCallback(async (file: File) => {
+    setCvError(null);
+    setCvUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/cv-upload", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Upload failed");
+      setCvPreview(data.preview);
+    } catch (e: any) {
+      setCvError(e.message || "Upload failed");
+    } finally {
+      setCvUploading(false);
+    }
+  }, []);
+
+  const removeCv = useCallback(async () => {
+    setCvPreview(null);
+    // Clear from DB
+    await fetch("/api/cv-upload", { method: "DELETE" }).catch(() => {});
+  }, []);
+
+  // On mount: if user already uploaded a CV previously, show the preview
+  useEffect(() => {
+    fetch("/api/training")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        const raw = d?.knowledgeBase?.rawContent;
+        if (raw) setCvPreview(raw.slice(0, 300) + (raw.length > 300 ? "…" : ""));
+      })
+      .catch(() => {});
+  }, []);
 
   const download = async () => {
     const html = resumeData?.raw;
@@ -430,6 +468,26 @@ Generate a complete, polished resume now:`;
           font-size: .68rem; font-weight: 700;
           letter-spacing: .1em; text-transform: uppercase;
           color: var(--c-muted); margin-bottom: 10px;
+        }
+
+        /* CV upload drop zone */
+        .rv-cv-drop {
+          display: flex; flex-direction: column; align-items: center; gap: 6px;
+          padding: 20px 16px; border-radius: 12px;
+          border: 1.5px dashed var(--c-border);
+          background: var(--c-surface); cursor: pointer;
+          transition: all .15s; margin-bottom: 6px; text-align: center;
+        }
+        .rv-cv-drop:hover {
+          border-color: var(--c-accent);
+          background: var(--c-accent-soft);
+        }
+        .rv-cv-imported {
+          display: flex; align-items: center; gap: 10px;
+          padding: 11px 14px; border-radius: 10px;
+          background: color-mix(in srgb, var(--c-accent) 8%, var(--c-surface));
+          border: 1.5px solid color-mix(in srgb, var(--c-accent) 30%, var(--c-border));
+          margin-bottom: 6px;
         }
 
         /* Job title input */
@@ -812,8 +870,46 @@ Generate a complete, polished resume now:`;
           {showConfig && phase === "idle" && (
             <div className="rv-config">
 
+              {/* Import existing CV */}
+              <div className="rv-config-title" style={{display:"flex",alignItems:"center",gap:6}}>
+                Import existing CV
+                <span style={{fontSize:".62rem",fontWeight:500,color:"var(--c-muted)",textTransform:"none",letterSpacing:0,marginLeft:2,padding:"2px 7px",background:"var(--c-surface-2)",border:"1px solid var(--c-border)",borderRadius:20}}>optional</span>
+              </div>
+
+              {!cvPreview ? (
+                <div
+                  className="rv-cv-drop"
+                  onClick={() => cvInputRef.current?.click()}
+                  onDragOver={e => e.preventDefault()}
+                  onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleCvUpload(f); }}
+                >
+                  <input
+                    ref={cvInputRef}
+                    type="file"
+                    accept=".pdf,.txt,.md"
+                    style={{display:"none"}}
+                    onChange={e => { const f = e.target.files?.[0]; if (f) handleCvUpload(f); }}
+                  />
+                  {cvUploading ? (
+                    <><Loader2 size={18} style={{animation:"rv-spin 1s linear infinite",color:"var(--c-accent)"}} /><span style={{fontSize:".8rem",color:"var(--c-muted)"}}>Reading file…</span></>
+                  ) : (
+                    <><Upload size={17} style={{color:"var(--c-accent)"}} /><span style={{fontSize:".8rem",color:"var(--c-text)",fontWeight:600}}>Drop PDF / TXT here or click to browse</span><span style={{fontSize:".7rem",color:"var(--c-muted)"}}>AI will use it to enrich your resume</span></>
+                  )}
+                </div>
+              ) : (
+                <div className="rv-cv-imported">
+                  <FileCheck size={16} style={{color:"var(--c-accent)",flexShrink:0}} />
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:".8rem",fontWeight:700,color:"var(--c-text)",marginBottom:2}}>CV imported ✓</div>
+                    <div style={{fontSize:".72rem",color:"var(--c-muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cvPreview}</div>
+                  </div>
+                  <button onClick={removeCv} style={{background:"none",border:"none",cursor:"pointer",color:"var(--c-muted)",padding:4,flexShrink:0,display:"flex",alignItems:"center"}}><XIcon size={14}/></button>
+                </div>
+              )}
+              {cvError && <div style={{fontSize:".75rem",color:"#DC2626",marginBottom:10}}>{cvError}</div>}
+
               {/* Job title */}
-              <div className="rv-config-title">Target role (optional)</div>
+              <div className="rv-config-title" style={{marginTop:20}}>Target role (optional)</div>
               <div className="rv-input-wrap">
                 <Briefcase size={14} className="rv-input-icon" />
                 <input
