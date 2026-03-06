@@ -1,7 +1,7 @@
 'use client';
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, Send, AlertCircle, RefreshCw } from "lucide-react";
+import { Loader2, Send, AlertCircle, RefreshCw, Moon, Sun, MessageSquarePlus, Sparkles } from "lucide-react";
 import FeedbackModal from "@/components/chat-ui/FeedbackModal";
 import ChatNavbar from "@/components/chat-ui/ChatNavbar";
 
@@ -9,7 +9,6 @@ interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
-// Defined OUTSIDE the page so React never unmounts it on re-render
 interface ChatInputProps {
   input: string;
   setInput: (v: string) => void;
@@ -17,6 +16,7 @@ interface ChatInputProps {
   isTyping: boolean;
   placeholder?: string;
 }
+
 function ChatInput({ input, setInput, onSend, isTyping, placeholder }: ChatInputProps) {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -25,79 +25,134 @@ function ChatInput({ input, setInput, onSend, isTyping, placeholder }: ChatInput
     }
   };
   const isDisabled = !input.trim() || isTyping;
+
   return (
-    <div className="flex w-full gap-2 sm:gap-3 items-end p-3 bg-base-200 rounded-xl border border-base-300 focus-within:border-primary transition-all">
-      <div className="flex-1">
+    <div className="chat-input-wrapper">
+      <div className="chat-input-inner">
         <textarea
-          className="w-full px-2 sm:px-3 py-2 bg-transparent text-base-content placeholder-base-content/50 border-none outline-none resize-none min-h-[40px] max-h-36 text-sm sm:text-base leading-relaxed"
+          className="chat-textarea"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder || 'Type a message...'}
           rows={1}
         />
+        <button
+          className={`send-btn ${isDisabled ? 'send-btn--disabled' : 'send-btn--active'}`}
+          onClick={onSend}
+          disabled={isDisabled}
+          aria-label="Send message"
+        >
+          {isTyping
+            ? <Loader2 className="icon spin" />
+            : <Send className="icon" />
+          }
+        </button>
       </div>
-      <button
-        className={`flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-lg transition-all ${
-          isDisabled ? 'bg-base-300 text-base-content/40 cursor-not-allowed' : 'bg-primary text-primary-content hover:bg-primary/90'
-        }`}
-        onClick={onSend}
-        disabled={isDisabled}
-        aria-label="Send message"
-      >
-        {isTyping ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-      </button>
+      <style>{`
+        .chat-input-wrapper {
+          width: 100%;
+          padding: 4px;
+          background: linear-gradient(135deg, var(--c-border), transparent 60%);
+          border-radius: 18px;
+        }
+        .chat-input-inner {
+          display: flex;
+          align-items: flex-end;
+          gap: 10px;
+          padding: 12px 14px;
+          background: var(--c-surface);
+          border-radius: 15px;
+          border: 1px solid var(--c-border);
+          transition: border-color 0.2s;
+        }
+        .chat-input-inner:focus-within {
+          border-color: var(--c-accent);
+        }
+        .chat-textarea {
+          flex: 1;
+          background: transparent;
+          border: none;
+          outline: none;
+          resize: none;
+          min-height: 22px;
+          max-height: 140px;
+          font-family: var(--font-body);
+          font-size: 0.9rem;
+          line-height: 1.55;
+          color: var(--c-text);
+        }
+        .chat-textarea::placeholder { color: var(--c-muted); }
+        .send-btn {
+          flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 36px;
+          height: 36px;
+          border-radius: 10px;
+          border: none;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        .send-btn--disabled {
+          background: var(--c-border);
+          color: var(--c-muted);
+          cursor: not-allowed;
+        }
+        .send-btn--active {
+          background: var(--c-accent);
+          color: #fff;
+        }
+        .send-btn--active:hover {
+          background: var(--c-accent-dim);
+          transform: scale(1.06);
+        }
+        .icon { width: 15px; height: 15px; }
+        .spin { animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+      `}</style>
     </div>
   );
 }
 
 export default function SharedChatPage({ params }: PageProps) {
-  // Get slug from params (App Router)
   const [slug, setSlug] = useState<string>("");
   useEffect(() => {
     (async () => {
-      if (params && typeof params.then === "function") {
-        const resolved = await params;
+      if (params && typeof (params as unknown as Promise<{slug:string}>).then === "function") {
+        const resolved = await (params as unknown as Promise<{slug:string}>);
         setSlug(resolved.slug);
-      } else if (params && typeof params === "object" && "slug" in params) {
-        setSlug(typeof params.slug === "string" ? params.slug : "");
+      } else if (params && "slug" in params) {
+        setSlug(typeof (params as {slug:string}).slug === "string" ? (params as {slug:string}).slug : "");
       }
     })();
   }, [params]);
 
-  // State for virtual self info
-  const [virtualSelf, setVirtualSelf] = useState<{ name: string; image?: string; userId?: string } | null>(null);
-  // Store resolved userId for chat API
+  const [virtualSelf, setVirtualSelf] = useState<{ name: string; image?: string } | null>(null);
   const [virtualSelfId, setVirtualSelfId] = useState<string | null>(null);
-  // Q&A pairs for this virtual self
   const [qaPairs, setQaPairs] = useState<Array<{ question: string; answer: string }>>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Fetch userId and virtual self info with proper loading states
   useEffect(() => {
     if (!slug) return;
-    
     setIsLoading(true);
     setError(null);
-    
-    const fetchVirtualSelf = async () => {
+    (async () => {
       try {
         const res = await fetch(`/api/swag/resolve?slug=${encodeURIComponent(slug)}`);
         if (!res.ok) throw new Error('Failed to load virtual self');
-        
         const data = await res.json();
-        if (data && data.userId) {
+        if (data?.userId) {
           setVirtualSelfId(data.userId);
           setVirtualSelf({ name: data.name, image: data.image });
-          
-          // Fetch Q&A pairs
           const qaRes = await fetch(`/api/knowledgebase/qa?userId=${data.userId}`);
           if (qaRes.ok) {
             const qaData = await qaRes.json();
             setQaPairs(Array.isArray(qaData.qaPairs) ? qaData.qaPairs : []);
           }
-        } else {
-          throw new Error('Virtual self not found');
-        }
+        } else throw new Error('Virtual self not found');
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Something went wrong');
         setVirtualSelfId(null);
@@ -106,24 +161,16 @@ export default function SharedChatPage({ params }: PageProps) {
       } finally {
         setIsLoading(false);
       }
-    };
-    
-    fetchVirtualSelf();
+    })();
   }, [slug]);
 
-  // Chat state and logic with enhanced UX states
   const [input, setInput] = useState("");
   type Message = {
-    id: number;
-    role: "user" | "assistant";
-    content: string;
-    status?: "sending" | "sent" | "failed";
-    timestamp?: Date;
+    id: number; role: "user" | "assistant"; content: string;
+    status?: "sending" | "sent" | "failed"; timestamp?: Date;
   };
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [retryMessage, setRetryMessage] = useState<Message | null>(null);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [rating, setRating] = useState(0);
@@ -131,54 +178,33 @@ export default function SharedChatPage({ params }: PageProps) {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
-  // Theme toggle functionality
   useEffect(() => {
     const theme = localStorage.getItem('theme');
     const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)')?.matches;
-    const shouldBeDark = theme === 'dark' || (!theme && prefersDark);
-    setIsDarkMode(shouldBeDark);
-    
-    if (shouldBeDark) {
-      document.documentElement.classList.add('dark');
-      document.documentElement.setAttribute('data-theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      document.documentElement.setAttribute('data-theme', 'light');
-    }
+    const dark = theme === 'dark' || (!theme && prefersDark);
+    setIsDarkMode(dark);
+    document.documentElement.setAttribute('data-mode', dark ? 'dark' : 'light');
   }, []);
 
   const toggleTheme = () => {
-    const newDarkMode = !isDarkMode;
-    setIsDarkMode(newDarkMode);
-    
-    if (newDarkMode) {
-      document.documentElement.classList.add('dark');
-      document.documentElement.setAttribute('data-theme', 'dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      document.documentElement.setAttribute('data-theme', 'light');
-      localStorage.setItem('theme', 'light');
-    }
+    const next = !isDarkMode;
+    setIsDarkMode(next);
+    document.documentElement.setAttribute('data-mode', next ? 'dark' : 'light');
+    localStorage.setItem('theme', next ? 'dark' : 'light');
   };
 
   useEffect(() => {
     try {
       const saved = localStorage.getItem(`velamini_chat_history_${slug}`);
-      if (saved) {
-        setMessages(JSON.parse(saved));
-      }
-    } catch (err) {
-      console.error("Failed to load chat history", err);
-    }
+      if (saved) setMessages(JSON.parse(saved));
+    } catch {}
   }, [slug]);
 
   useEffect(() => {
-    if (messages.length > 0) {
+    if (messages.length > 0)
       localStorage.setItem(`velamini_chat_history_${slug}`, JSON.stringify(messages));
-    } else {
+    else
       localStorage.removeItem(`velamini_chat_history_${slug}`);
-    }
   }, [messages, slug]);
 
   useEffect(() => {
@@ -186,91 +212,53 @@ export default function SharedChatPage({ params }: PageProps) {
   }, [messages, isTyping]);
 
   const sendMessage = async (messageToRetry?: Message) => {
-    const messageContent = messageToRetry?.content || input.trim();
-    if (!messageContent) return;
+    const content = messageToRetry?.content || input.trim();
+    if (!content) return;
 
     const userMessage: Message = messageToRetry || {
-      id: Date.now(),
-      role: "user",
-      content: messageContent,
-      status: "sending",
-      timestamp: new Date(),
+      id: Date.now(), role: "user", content, status: "sending", timestamp: new Date(),
     };
 
     if (!messageToRetry) {
-      setMessages((prev) => [...prev, userMessage]);
+      setMessages(prev => [...prev, userMessage]);
       setInput("");
     } else {
-      // Update retry message status
-      setMessages((prev) => 
-        prev.map(m => m.id === messageToRetry.id ? { ...m, status: "sending" } : m)
-      );
+      setMessages(prev => prev.map(m => m.id === messageToRetry.id ? { ...m, status: "sending" } : m));
     }
-    
+
     setIsTyping(true);
     setRetryMessage(null);
 
     try {
-      let recentHistory = messages.slice(-6).map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
+      const recentHistory = messages.slice(-6).map(m => ({ role: m.role, content: m.content }));
 
-      // If there is no chat history, preload knowledge and system prompt for backend use
-      let useDefaultKnowledge = false;
-      if (messages.length === 0) {
-        useDefaultKnowledge = true;
-      }
-
-      // Wait for virtualSelfId to be resolved
       if (!virtualSelfId) {
-        setMessages((prev) => 
-          prev.map(m => m.id === userMessage.id ? { ...m, status: "failed" } : m)
-        );
+        setMessages(prev => prev.map(m => m.id === userMessage.id ? { ...m, status: "failed" } : m));
         setRetryMessage(userMessage);
         setIsTyping(false);
         return;
       }
 
-      // Inject Q&A pairs into the context/system prompt for the AI
-      let qaContext = "";
-      if (qaPairs.length > 0) {
-        qaContext = '\n\nUSER Q&A MEMORY (Recall these answers if asked similar questions):\n' + qaPairs.map(q => `Q: ${q.question}\nA: ${q.answer}`).join("\n\n");
-      }
+      const qaContext = qaPairs.length > 0
+        ? '\n\nUSER Q&A MEMORY:\n' + qaPairs.map(q => `Q: ${q.question}\nA: ${q.answer}`).join("\n\n")
+        : "";
 
       const res = await fetch("/api/chat/shared", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: userMessage.content,
-          history: recentHistory,
-          virtualSelfId: virtualSelfId,
-          qaContext,
-        }),
+        body: JSON.stringify({ message: userMessage.content, history: recentHistory, virtualSelfId, qaContext }),
       });
 
       const data = await res.json();
 
-      // Mark user message as sent
-      setMessages((prev) => 
-        prev.map(m => m.id === userMessage.id ? { ...m, status: "sent" } : m)
-      );
-      
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now() + 1,
-          role: "assistant",
-          content: data.text ?? data.error ?? "Sorry, something went wrong.",
-          timestamp: new Date(),
-        } as Message,
-      ]);
-    } catch (err) {
-      console.error("Chat request failed:", err);
-      // Mark user message as failed
-      setMessages((prev) => 
-        prev.map(m => m.id === userMessage.id ? { ...m, status: "failed" } : m)
-      );
+      setMessages(prev => prev.map(m => m.id === userMessage.id ? { ...m, status: "sent" } : m));
+      setMessages(prev => [...prev, {
+        id: Date.now() + 1, role: "assistant",
+        content: data.text ?? data.error ?? "Sorry, something went wrong.",
+        timestamp: new Date(),
+      }]);
+    } catch {
+      setMessages(prev => prev.map(m => m.id === userMessage.id ? { ...m, status: "failed" } : m));
       setRetryMessage(userMessage);
     } finally {
       setIsTyping(false);
@@ -283,237 +271,456 @@ export default function SharedChatPage({ params }: PageProps) {
     setInput("");
   };
 
-
-
   const hasMessages = messages.length > 0;
 
   return (
-    <div className="flex flex-col h-screen bg-base-100 overflow-hidden">
-      {/* Loading overlay */}
-      <AnimatePresence>
-        {isLoading && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-base-100/80 backdrop-blur-sm"
-          >
-            <div className="flex flex-col items-center gap-4 p-6 sm:p-8 bg-base-200 rounded-2xl border border-base-300 shadow-xl mx-4">
-              <Loader2 className="w-7 h-7 animate-spin text-primary" />
-              <div className="text-center">
-                <p className="font-medium text-sm sm:text-base">Loading virtual self...</p>
-                <p className="text-base-content/60 text-xs sm:text-sm mt-1">Preparing your conversation</p>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-      
-      {/* Error State */}
-      <AnimatePresence>
-        {error && !isLoading && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="fixed inset-0 z-40 flex items-center justify-center bg-base-100/80 backdrop-blur-sm p-4"
-          >
-            <div className="flex flex-col items-center gap-4 p-6 sm:p-8 bg-base-200 rounded-2xl border border-error/30 shadow-xl max-w-sm sm:max-w-md w-full">
-              <div className="p-3 bg-error/10 rounded-full">
-                <AlertCircle className="w-6 h-6 sm:w-8 sm:h-8 text-error" />
-              </div>
-              <div className="text-center">
-                <h3 className="text-base sm:text-lg font-semibold text-base-content mb-2">Connection Error</h3>
-                <p className="text-base-content/70 mb-4 text-sm sm:text-base">{error}</p>
-                <button
-                  onClick={() => window.location.reload()}
-                  className="btn btn-primary btn-sm"
-                >
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Try Again
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+    <>
+      <style>{`
+        /* ── Design tokens ── */
+        :root, [data-mode="light"] {
+          --c-bg:         #F7F5F2;
+          --c-surface:    #FFFFFF;
+          --c-surface-2:  #F0EDE8;
+          --c-border:     #E4DED6;
+          --c-text:       #1A1714;
+          --c-muted:      #9A9189;
+          --c-accent:     #C4622D;
+          --c-accent-dim: #A0501F;
+          --c-user-bg:    #1A1714;
+          --c-user-text:  #F7F5F2;
+          --c-bot-bg:     #FFFFFF;
+          --c-bot-text:   #1A1714;
+          --font-display: 'DM Serif Display', Georgia, serif;
+          --font-body:    'DM Sans', system-ui, sans-serif;
+          --shadow-sm:    0 1px 4px rgba(0,0,0,0.06);
+          --shadow-md:    0 4px 24px rgba(0,0,0,0.08);
+        }
+        [data-mode="dark"] {
+          --c-bg:         #111010;
+          --c-surface:    #1C1B1A;
+          --c-surface-2:  #252322;
+          --c-border:     #2E2C2A;
+          --c-text:       #EDE9E4;
+          --c-muted:      #6B6560;
+          --c-accent:     #E07040;
+          --c-accent-dim: #C45A28;
+          --c-user-bg:    #E07040;
+          --c-user-text:  #FFF;
+          --c-bot-bg:     #252322;
+          --c-bot-text:   #EDE9E4;
+          --shadow-sm:    0 1px 4px rgba(0,0,0,0.3);
+          --shadow-md:    0 4px 24px rgba(0,0,0,0.4);
+        }
 
-      <ChatNavbar
-        onShowFeedback={() => setShowFeedbackModal(true)}
-        onNewChat={handleNewChat}
-        isDarkMode={isDarkMode}
-        onToggleTheme={toggleTheme}
-      />
+        @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap');
 
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <AnimatePresence mode="wait">
-          {!hasMessages ? (
-            /* ── WELCOME SCREEN ── */
-            <motion.div
-              key="welcome"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3 }}
-              className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 overflow-y-auto"
-            >
-              {!isLoading && !error && virtualSelf && (
-                <div className="w-full max-w-xl flex flex-col items-center text-center">
-                  {/* Avatar */}
-                  <motion.div
-                    initial={{ scale: 0.8, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{ type: "spring", duration: 0.6 }}
-                    className="relative mb-5"
-                  >
-                    <img
-                      src={virtualSelf.image || "/logo.png"}
-                      alt={virtualSelf.name}
-                      className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-2 border-base-300 shadow-lg bg-base-100"
-                    />
-                    <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-success rounded-full border-2 border-base-100" />
-                  </motion.div>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-                  <motion.h2
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.2 }}
-                    className="text-xl sm:text-2xl font-semibold text-base-content mb-1"
-                  >
-                    {virtualSelf.name}
-                  </motion.h2>
-                  <motion.p
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.3 }}
-                    className="text-base-content/60 text-sm mb-6"
-                  >
-                    Start a conversation
-                  </motion.p>
+        body {
+          font-family: var(--font-body);
+          background: var(--c-bg);
+          color: var(--c-text);
+          transition: background 0.3s, color 0.3s;
+        }
 
-                  {/* Chat input on welcome screen */}
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.4 }}
-                    className="w-full"
-                  >
-                    <ChatInput
-                      input={input}
-                      setInput={setInput}
-                      onSend={sendMessage}
-                      isTyping={isTyping}
-                      placeholder={`Message ${virtualSelf.name}…`}
-                    />
-                  </motion.div>
-                </div>
-              )}
-            </motion.div>
-          ) : (
-            /* ── CONVERSATION VIEW ── */
-            <motion.div
-              key="conversation"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.25 }}
-              className="flex-1 flex flex-col overflow-hidden"
-            >
-              {/* Scrollable message list */}
-              <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 flex flex-col items-center">
-                <div className="w-full max-w-xl flex flex-col gap-3 sm:gap-4 pb-2">
-                  {messages.map((msg) => {
-                    const isCurrentUser = msg.role === "user";
-                    const avatar = isCurrentUser ? "/logo.png" : (virtualSelf?.image || "/logo.png");
-                    const name = isCurrentUser ? "You" : (virtualSelf?.name || "Virtual Self");
-                    const time = msg.timestamp
-                      ? msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-                      : new Date(msg.id).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        /* ── Layout ── */
+        .page { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; background: var(--c-bg); }
 
-                    return (
-                      <motion.div
-                        key={msg.id}
-                        initial={{ opacity: 0, y: 16, scale: 0.97 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        transition={{ type: "spring", duration: 0.4 }}
-                        className={`chat ${isCurrentUser ? "chat-end" : "chat-start"}`}
-                      >
-                        <div className="chat-image avatar">
-                          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full">
-                            <img alt={`${name} avatar`} src={avatar} className="w-full h-full object-cover" />
-                          </div>
-                        </div>
-                        <div className="chat-header">
-                          <span className="text-xs text-base-content/60">{name}</span>
-                          <time className="text-xs text-base-content/40 ml-2">{time}</time>
-                        </div>
-                        <div className={`chat-bubble text-sm ${
-                          isCurrentUser ? "chat-bubble-primary" : "chat-bubble-accent"
-                        }`}>
-                          {msg.content}
-                        </div>
-                      </motion.div>
-                    );
-                  })}
+        /* ── Navbar ── */
+        .navbar {
+          display: flex; align-items: center; justify-content: space-between;
+          padding: 14px 20px;
+          background: var(--c-surface);
+          border-bottom: 1px solid var(--c-border);
+          gap: 12px;
+          flex-shrink: 0;
+        }
+        .navbar-brand {
+          display: flex; align-items: center; gap: 10px;
+        }
+        .navbar-logo {
+          width: 28px; height: 28px; border-radius: 8px;
+          background: var(--c-accent); display: flex; align-items: center; justify-content: center;
+        }
+        .navbar-logo svg { width: 14px; height: 14px; color: #fff; }
+        .navbar-title {
+          font-family: var(--font-display);
+          font-size: 1.05rem;
+          color: var(--c-text);
+          letter-spacing: -0.01em;
+        }
+        .navbar-actions { display: flex; align-items: center; gap: 6px; }
+        .icon-btn {
+          display: flex; align-items: center; justify-content: center;
+          width: 34px; height: 34px; border-radius: 9px;
+          border: 1px solid var(--c-border);
+          background: var(--c-surface-2);
+          color: var(--c-muted);
+          cursor: pointer;
+          transition: all 0.18s;
+        }
+        .icon-btn:hover { color: var(--c-text); border-color: var(--c-accent); background: var(--c-surface); }
+        .icon-btn svg { width: 15px; height: 15px; }
 
-                  {/* Typing indicator — three bouncing dots */}
-                  <AnimatePresence>
-                    {isTyping && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -8 }}
-                        className="chat chat-start"
-                      >
-                        <div className="chat-image avatar">
-                          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full">
-                            <img alt="avatar" src={virtualSelf?.image || "/logo.png"} />
-                          </div>
-                        </div>
-                        <div className="chat-bubble chat-bubble-accent">
-                          <span className="flex items-center gap-1 h-4">
-                            {[0, 1, 2].map((i) => (
-                              <motion.span
-                                key={i}
-                                className="block w-2 h-2 rounded-full bg-current"
-                                animate={{ y: [0, -5, 0] }}
-                                transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15 }}
-                              />
-                            ))}
-                          </span>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+        /* ── Loading overlay ── */
+        .overlay {
+          position: fixed; inset: 0; z-index: 50;
+          display: flex; align-items: center; justify-content: center;
+          background: color-mix(in srgb, var(--c-bg) 85%, transparent);
+          backdrop-filter: blur(6px);
+        }
+        .overlay-card {
+          display: flex; flex-direction: column; align-items: center; gap: 14px;
+          padding: 36px 40px;
+          background: var(--c-surface);
+          border: 1px solid var(--c-border);
+          border-radius: 20px;
+          box-shadow: var(--shadow-md);
+          text-align: center;
+        }
+        .overlay-spinner { color: var(--c-accent); animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .overlay-title { font-family: var(--font-display); font-size: 1.1rem; color: var(--c-text); }
+        .overlay-sub { font-size: 0.8rem; color: var(--c-muted); margin-top: 2px; }
 
-                  <div ref={bottomRef} />
-                </div>
-              </div>
+        /* ── Error card ── */
+        .error-icon-wrap {
+          width: 54px; height: 54px; border-radius: 50%;
+          background: color-mix(in srgb, #E53E3E 12%, transparent);
+          display: flex; align-items: center; justify-content: center;
+          color: #E53E3E;
+        }
+        .retry-btn {
+          display: inline-flex; align-items: center; gap: 6px;
+          padding: 8px 18px; border-radius: 10px;
+          background: var(--c-accent); color: #fff;
+          border: none; cursor: pointer; font-size: 0.85rem;
+          font-family: var(--font-body);
+          transition: background 0.18s, transform 0.18s;
+        }
+        .retry-btn:hover { background: var(--c-accent-dim); transform: scale(1.03); }
 
-              {/* Fixed bottom input bar */}
-              <div className="border-t border-base-200 bg-base-100 px-4 sm:px-6 py-3 sm:py-4 flex justify-center">
-                <div className="w-full max-w-xl">
-                  <ChatInput
-                    input={input}
-                    setInput={setInput}
-                    onSend={sendMessage}
-                    isTyping={isTyping}
-                    placeholder={virtualSelf ? `Message ${virtualSelf.name}…` : "Type a message…"}
-                  />
+        /* ── Welcome ── */
+        .welcome {
+          flex: 1; display: flex; flex-direction: column;
+          align-items: center; justify-content: center;
+          padding: 32px 20px; overflow-y: auto;
+        }
+        .welcome-inner { width: 100%; max-width: 480px; display: flex; flex-direction: column; align-items: center; text-align: center; }
+        .avatar-wrap { position: relative; margin-bottom: 20px; }
+        .avatar-img {
+          width: 80px; height: 80px; border-radius: 50%;
+          border: 3px solid var(--c-border);
+          object-fit: cover;
+          box-shadow: var(--shadow-md);
+          background: var(--c-surface-2);
+        }
+        .online-dot {
+          position: absolute; bottom: 2px; right: 2px;
+          width: 14px; height: 14px; border-radius: 50%;
+          background: #38A169;
+          border: 2.5px solid var(--c-bg);
+        }
+        .welcome-name {
+          font-family: var(--font-display);
+          font-size: 1.75rem; font-weight: 400;
+          letter-spacing: -0.02em;
+          color: var(--c-text); margin-bottom: 6px;
+        }
+        .welcome-sub { font-size: 0.82rem; color: var(--c-muted); margin-bottom: 28px; letter-spacing: 0.04em; text-transform: uppercase; }
+        .welcome-divider {
+          width: 36px; height: 1.5px; background: var(--c-accent);
+          border-radius: 2px; margin: 0 auto 28px;
+        }
+
+        /* ── Conversation ── */
+        .conversation { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+        .message-list {
+          flex: 1; overflow-y: auto; padding: 24px 20px;
+          display: flex; flex-direction: column; align-items: center;
+          scrollbar-width: thin; scrollbar-color: var(--c-border) transparent;
+        }
+        .message-list::-webkit-scrollbar { width: 4px; }
+        .message-list::-webkit-scrollbar-thumb { background: var(--c-border); border-radius: 4px; }
+        .messages-inner { width: 100%; max-width: 600px; display: flex; flex-direction: column; gap: 16px; padding-bottom: 8px; }
+
+        /* ── Message row ── */
+        .msg-row { display: flex; align-items: flex-end; gap: 10px; }
+        .msg-row--user { flex-direction: row-reverse; }
+        .msg-avatar {
+          width: 30px; height: 30px; border-radius: 50%;
+          object-fit: cover; flex-shrink: 0;
+          border: 1.5px solid var(--c-border);
+          background: var(--c-surface-2);
+        }
+        .msg-content { display: flex; flex-direction: column; gap: 4px; max-width: 75%; }
+        .msg-row--user .msg-content { align-items: flex-end; }
+        .msg-meta { display: flex; align-items: center; gap: 6px; }
+        .msg-name { font-size: 0.72rem; font-weight: 500; color: var(--c-muted); letter-spacing: 0.02em; }
+        .msg-time { font-size: 0.68rem; color: color-mix(in srgb, var(--c-muted) 70%, transparent); }
+        .msg-bubble {
+          padding: 10px 14px;
+          border-radius: 16px;
+          font-size: 0.875rem;
+          line-height: 1.6;
+          box-shadow: var(--shadow-sm);
+        }
+        .msg-bubble--user {
+          background: var(--c-user-bg);
+          color: var(--c-user-text);
+          border-bottom-right-radius: 5px;
+        }
+        .msg-bubble--bot {
+          background: var(--c-bot-bg);
+          color: var(--c-bot-text);
+          border: 1px solid var(--c-border);
+          border-bottom-left-radius: 5px;
+        }
+        .msg-bubble--failed { opacity: 0.6; }
+
+        /* ── Typing indicator ── */
+        .typing-dots { display: flex; align-items: center; gap: 4px; height: 16px; padding: 0 4px; }
+        .dot {
+          width: 6px; height: 6px; border-radius: 50%;
+          background: var(--c-muted);
+          animation: bounce 0.9s ease-in-out infinite;
+        }
+        .dot:nth-child(2) { animation-delay: 0.15s; }
+        .dot:nth-child(3) { animation-delay: 0.3s; }
+        @keyframes bounce { 0%,80%,100% { transform: translateY(0); } 40% { transform: translateY(-6px); } }
+
+        /* ── Input bar ── */
+        .input-bar {
+          border-top: 1px solid var(--c-border);
+          background: var(--c-surface);
+          padding: 14px 20px;
+          display: flex; justify-content: center;
+        }
+        .input-bar-inner { width: 100%; max-width: 600px; }
+
+        /* ── Scrollbar ── */
+        .message-list { scroll-behavior: smooth; }
+      `}</style>
+
+      <div className="page">
+        {/* Loading overlay */}
+        <AnimatePresence>
+          {isLoading && (
+            <motion.div className="overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <div className="overlay-card">
+                <Loader2 size={28} className="overlay-spinner" />
+                <div>
+                  <p className="overlay-title">One moment…</p>
+                  <p className="overlay-sub">Waking up your virtual self</p>
                 </div>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
 
-      <FeedbackModal
-        isOpen={showFeedbackModal}
-        onClose={() => setShowFeedbackModal(false)}
-        rating={rating}
-        setRating={setRating}
-        feedbackText={feedbackText}
-        setFeedbackText={setFeedbackText}
-      />
-    </div>
+        {/* Error overlay */}
+        <AnimatePresence>
+          {error && !isLoading && (
+            <motion.div className="overlay" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+              <div className="overlay-card">
+                <div className="error-icon-wrap">
+                  <AlertCircle size={24} />
+                </div>
+                <div>
+                  <p className="overlay-title">Something went wrong</p>
+                  <p className="overlay-sub" style={{ marginBottom: 16 }}>{error}</p>
+                  <button className="retry-btn" onClick={() => window.location.reload()}>
+                    <RefreshCw size={13} /> Try again
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Navbar */}
+        <nav className="navbar">
+          <div className="navbar-brand">
+            <div className="navbar-logo"><Sparkles size={14} /></div>
+            <span className="navbar-title">
+              {virtualSelf?.name ?? 'Virtual Self'}
+            </span>
+          </div>
+          <div className="navbar-actions">
+            <button className="icon-btn" onClick={handleNewChat} title="New chat">
+              <MessageSquarePlus size={15} />
+            </button>
+            <button className="icon-btn" onClick={toggleTheme} title="Toggle theme">
+              {isDarkMode ? <Sun size={15} /> : <Moon size={15} />}
+            </button>
+          </div>
+        </nav>
+
+        {/* Main content */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <AnimatePresence mode="wait">
+            {!hasMessages ? (
+              /* Welcome */
+              <motion.div
+                key="welcome"
+                className="welcome"
+                initial={{ opacity: 0, y: 24 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -16 }}
+                transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+              >
+                {!isLoading && !error && virtualSelf && (
+                  <div className="welcome-inner">
+                    <motion.div
+                      className="avatar-wrap"
+                      initial={{ scale: 0.82, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{ type: "spring", stiffness: 280, damping: 22, delay: 0.05 }}
+                    >
+                      <img
+                        src={virtualSelf.image || "/logo.png"}
+                        alt={virtualSelf.name}
+                        className="avatar-img"
+                      />
+                      <div className="online-dot" />
+                    </motion.div>
+
+                    <motion.h1
+                      className="welcome-name"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.12 }}
+                    >
+                      {virtualSelf.name}
+                    </motion.h1>
+
+                    <motion.p
+                      className="welcome-sub"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.18 }}
+                    >
+                      Available now
+                    </motion.p>
+
+                    <motion.div
+                      className="welcome-divider"
+                      initial={{ scaleX: 0, opacity: 0 }}
+                      animate={{ scaleX: 1, opacity: 1 }}
+                      transition={{ delay: 0.24 }}
+                    />
+
+                    <motion.div
+                      style={{ width: '100%' }}
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.3 }}
+                    >
+                      <ChatInput
+                        input={input}
+                        setInput={setInput}
+                        onSend={sendMessage}
+                        isTyping={isTyping}
+                        placeholder={`Ask ${virtualSelf.name} anything…`}
+                      />
+                    </motion.div>
+                  </div>
+                )}
+              </motion.div>
+            ) : (
+              /* Conversation */
+              <motion.div
+                key="conversation"
+                className="conversation"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.22 }}
+              >
+                <div className="message-list">
+                  <div className="messages-inner">
+                    {messages.map((msg, i) => {
+                      const isUser = msg.role === "user";
+                      const avatar = isUser ? "/logo.png" : (virtualSelf?.image || "/logo.png");
+                      const name = isUser ? "You" : (virtualSelf?.name || "Assistant");
+                      const time = msg.timestamp
+                        ? new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                        : new Date(msg.id).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+                      return (
+                        <motion.div
+                          key={msg.id}
+                          className={`msg-row ${isUser ? 'msg-row--user' : ''}`}
+                          initial={{ opacity: 0, y: 14, scale: 0.97 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          transition={{ type: "spring", stiffness: 340, damping: 26, delay: i === messages.length - 1 ? 0 : 0 }}
+                        >
+                          <img src={avatar} alt={name} className="msg-avatar" />
+                          <div className="msg-content">
+                            <div className="msg-meta">
+                              {!isUser && <span className="msg-name">{name}</span>}
+                              <span className="msg-time">{time}</span>
+                              {isUser && <span className="msg-name">You</span>}
+                            </div>
+                            <div className={`msg-bubble ${isUser ? 'msg-bubble--user' : 'msg-bubble--bot'} ${msg.status === 'failed' ? 'msg-bubble--failed' : ''}`}>
+                              {msg.content}
+                            </div>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+
+                    {/* Typing */}
+                    <AnimatePresence>
+                      {isTyping && (
+                        <motion.div
+                          className="msg-row"
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -6 }}
+                        >
+                          <img src={virtualSelf?.image || "/logo.png"} alt="typing" className="msg-avatar" />
+                          <div className="msg-content">
+                            <div className="msg-bubble msg-bubble--bot">
+                              <div className="typing-dots">
+                                <div className="dot" />
+                                <div className="dot" />
+                                <div className="dot" />
+                              </div>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    <div ref={bottomRef} />
+                  </div>
+                </div>
+
+                <div className="input-bar">
+                  <div className="input-bar-inner">
+                    <ChatInput
+                      input={input}
+                      setInput={setInput}
+                      onSend={sendMessage}
+                      isTyping={isTyping}
+                      placeholder={virtualSelf ? `Message ${virtualSelf.name}…` : "Type a message…"}
+                    />
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        <FeedbackModal
+          isOpen={showFeedbackModal}
+          onClose={() => setShowFeedbackModal(false)}
+          rating={rating}
+          setRating={setRating}
+          feedbackText={feedbackText}
+          setFeedbackText={setFeedbackText}
+        />
+      </div>
+    </>
   );
-};
+}
