@@ -74,6 +74,8 @@ export default function SharedChatPage({ params }: PageProps) {
 
   const [virtualSelf, setVirtualSelf]     = useState<{ name: string; image?: string } | null>(null);
   const [virtualSelfId, setVirtualSelfId] = useState<string | null>(null);
+  // Ref mirrors state so sendMessage closure always sees latest value, not stale capture
+  const virtualSelfIdRef = useRef<string | null>(null);
   const [qaPairs, setQaPairs]             = useState<{ question: string; answer: string }[]>([]);
   const [isLoading, setIsLoading]         = useState(true);
   const [error, setError]                 = useState<string | null>(null);
@@ -88,6 +90,7 @@ export default function SharedChatPage({ params }: PageProps) {
         if (!res.ok) throw new Error('Failed to load virtual self');
         const data = await res.json();
         if (data?.userId) {
+          virtualSelfIdRef.current = data.userId;
           setVirtualSelfId(data.userId);
           setVirtualSelf({ name: data.name, image: data.image });
           const qaRes = await fetch(`/api/knowledgebase/qa?userId=${data.userId}`);
@@ -98,6 +101,7 @@ export default function SharedChatPage({ params }: PageProps) {
         } else throw new Error('Virtual self not found');
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Something went wrong');
+        virtualSelfIdRef.current = null;
         setVirtualSelfId(null); setVirtualSelf(null); setQaPairs([]);
       } finally { setIsLoading(false); }
     })();
@@ -189,8 +193,9 @@ export default function SharedChatPage({ params }: PageProps) {
     const content = messageToRetry?.content || input.trim();
     if (!content) return;
 
-    // FIX 5: Hard guard — never send if virtualSelfId isn't ready yet
-    if (!virtualSelfId) {
+    // Use ref to get latest virtualSelfId — avoids stale closure bug on iOS
+    const currentVirtualSelfId = virtualSelfIdRef.current ?? virtualSelfId;
+    if (!currentVirtualSelfId) {
       setError("Still loading — please wait a moment and try again.");
       return;
     }
@@ -213,12 +218,9 @@ export default function SharedChatPage({ params }: PageProps) {
 
     try {
       const recentHistory = messages.slice(-6).map(m => ({ role: m.role, content: m.content }));
-      const qaContext = qaPairs.length > 0
-        ? '\n\nUSER Q&A MEMORY:\n' + qaPairs.map(q => `Q: ${q.question}\nA: ${q.answer}`).join("\n\n") : "";
-
       const res  = await fetch("/api/chat/shared", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userMessage.content, history: recentHistory, virtualSelfId, qaContext }),
+        body: JSON.stringify({ message: userMessage.content, history: recentHistory, virtualSelfId: currentVirtualSelfId }),
       });
       const data = await res.json();
       setMessages(prev => prev.map(m => m.id === userMessage.id ? { ...m, status: "sent" } : m));
@@ -693,7 +695,7 @@ export default function SharedChatPage({ params }: PageProps) {
                       <motion.div style={{ width: '100%' }}
                         initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28 }}>
                         <ChatInput input={input} setInput={setInput} onSend={sendMessage}
-                          isTyping={isTyping} placeholder={`Ask ${virtualSelf.name} anything…`} />
+                          isTyping={isTyping || !virtualSelfId} placeholder={`Ask ${virtualSelf.name} anything…`} />
                       </motion.div>
                     </div>
                   )}
@@ -747,7 +749,7 @@ export default function SharedChatPage({ params }: PageProps) {
                   <div className="input-bar">
                     <div className="input-bar-inner">
                       <ChatInput input={input} setInput={setInput} onSend={sendMessage}
-                        isTyping={isTyping}
+                        isTyping={isTyping || !virtualSelfId}
                         placeholder={virtualSelf ? `Message ${virtualSelf.name}…` : "Type a message…"} />
                     </div>
                   </div>
