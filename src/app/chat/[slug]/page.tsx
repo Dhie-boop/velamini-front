@@ -1,8 +1,6 @@
 'use client';
-import { useState, useRef, useEffect, useTransition } from "react";
-import { useParams } from "next/navigation";
+import { useState, useRef, useEffect, use } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { clientLog } from "@/lib/client-logger";
 import {
   Loader2, Send, AlertCircle, RefreshCw,
   Moon, Sun, MessageSquarePlus, PanelLeftOpen, PanelLeftClose, Trash2, Clock, MessageCircle, X
@@ -18,7 +16,6 @@ type Message = {
   role: "user" | "assistant";
   content: string;
   status?: "sending" | "sent" | "failed";
-  failReason?: "timeout" | "network";
   timestamp?: Date;
 };
 
@@ -70,41 +67,38 @@ function ChatInput({ input, setInput, onSend, isTyping, placeholder }: ChatInput
   );
 }
 
-export default function SharedChatPage({ params: _ }: PageProps) {
-  const routeParams = useParams();
-  const slug = (routeParams?.slug as string) ?? "";
+export default function SharedChatPage({ params }: PageProps) {
+  // FIX 1: Use React.use() to unwrap the params Promise synchronously
+  // This is the correct Next.js 15 way — avoids the async race condition
+  const { slug } = use(params);
+
   const [virtualSelf, setVirtualSelf]     = useState<{ name: string; image?: string } | null>(null);
   const [virtualSelfId, setVirtualSelfId] = useState<string | null>(null);
+  const [qaPairs, setQaPairs]             = useState<{ question: string; answer: string }[]>([]);
   const [isLoading, setIsLoading]         = useState(true);
   const [error, setError]                 = useState<string | null>(null);
 
-  // slug comes from useParams() — synchronous, no Suspense needed
+  // FIX 2: slug is now always available on first render — no empty string race
   useEffect(() => {
-    if (!slug) {
-      clientLog.warn("/chat/[slug]", "slug is empty after useParams", { href: window.location.href });
-      return;
-    }
-    clientLog.info("/chat/[slug]", "Starting resolve", { slug });
+    if (!slug) return;
     setIsLoading(true); setError(null);
     (async () => {
       try {
         const res  = await fetch(`/api/swag/resolve?slug=${encodeURIComponent(slug)}`);
-        clientLog.info("/chat/[slug]", "resolve response", { slug, status: res.status });
-        if (!res.ok) throw new Error(`resolve ${res.status}`);
+        if (!res.ok) throw new Error('Failed to load virtual self');
         const data = await res.json();
         if (data?.userId) {
-          clientLog.info("/chat/[slug]", "virtualSelfId set", { slug, userId: data.userId });
           setVirtualSelfId(data.userId);
           setVirtualSelf({ name: data.name, image: data.image });
-        } else {
-          clientLog.error("/chat/[slug]", "resolve returned no userId", { slug, data });
-          throw new Error('Virtual self not found');
-        }
+          const qaRes = await fetch(`/api/knowledgebase/qa?userId=${data.userId}`);
+          if (qaRes.ok) {
+            const qd = await qaRes.json();
+            setQaPairs(Array.isArray(qd.qaPairs) ? qd.qaPairs : []);
+          }
+        } else throw new Error('Virtual self not found');
       } catch (e) {
-        const msg = e instanceof Error ? e.message : 'Something went wrong';
-        clientLog.error("/chat/[slug]", "resolve failed", { slug, err: msg, href: window.location.href });
-        setError(msg);
-        setVirtualSelfId(null); setVirtualSelf(null);
+        setError(e instanceof Error ? e.message : 'Something went wrong');
+        setVirtualSelfId(null); setVirtualSelf(null); setQaPairs([]);
       } finally { setIsLoading(false); }
     })();
   }, [slug]);
@@ -121,8 +115,6 @@ export default function SharedChatPage({ params: _ }: PageProps) {
   const [sessions, setSessions]         = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
-  const [, startTransition] = useTransition();
-  const lsWriteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const t = localStorage.getItem('theme');
@@ -147,30 +139,22 @@ export default function SharedChatPage({ params: _ }: PageProps) {
     } catch {}
   }, [slug]);
 
-  // Debounced localStorage write — avoids blocking main thread on every keystroke/message
   useEffect(() => {
-    if (!slug) return;
-    if (lsWriteTimer.current) clearTimeout(lsWriteTimer.current);
-    lsWriteTimer.current = setTimeout(() => {
-      try { localStorage.setItem(`vela_sessions_${slug}`, JSON.stringify(sessions)); } catch {}
-    }, 400);
-    return () => { if (lsWriteTimer.current) clearTimeout(lsWriteTimer.current); };
+    if (!slug) return; // FIX 3b: Don't write to localStorage with empty slug key
+    localStorage.setItem(`vela_sessions_${slug}`, JSON.stringify(sessions));
   }, [sessions, slug]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
-  // Update session history in a deferred (non-urgent) transition to avoid blocking input
   useEffect(() => {
     if (!activeSessionId || messages.length === 0) return;
-    startTransition(() => {
-      setSessions(prev => prev.map(s =>
-        s.id === activeSessionId
-          ? { ...s, messages, title: messages[0]?.content.slice(0, 42) || s.title }
-          : s
-      ));
-    });
+    setSessions(prev => prev.map(s =>
+      s.id === activeSessionId
+        ? { ...s, messages, title: messages[0]?.content.slice(0, 42) || s.title }
+        : s
+    ));
   }, [messages]);
 
   // FIX 4: Only lock body scroll on mobile (sidebar overlay), not always
@@ -207,7 +191,6 @@ export default function SharedChatPage({ params: _ }: PageProps) {
 
     // FIX 5: Hard guard — never send if virtualSelfId isn't ready yet
     if (!virtualSelfId) {
-      clientLog.error("/chat/[slug]", "sendMessage called with null virtualSelfId", { slug, isLoading, error });
       setError("Still loading — please wait a moment and try again.");
       return;
     }
@@ -228,53 +211,26 @@ export default function SharedChatPage({ params: _ }: PageProps) {
 
     setIsTyping(true); setRetryMessage(null);
 
-    // 60-second hard timeout — iOS Safari silently kills long fetches
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60_000);
-
     try {
       const recentHistory = messages.slice(-6).map(m => ({ role: m.role, content: m.content }));
+      const qaContext = qaPairs.length > 0
+        ? '\n\nUSER Q&A MEMORY:\n' + qaPairs.map(q => `Q: ${q.question}\nA: ${q.answer}`).join("\n\n") : "";
 
-      const res = await fetch("/api/chat/shared", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        // keepalive: true tells Safari to NOT kill this request when keyboard dismisses
-        // or the page briefly loses focus — fixes the #1 iPhone blank-reply bug
-        keepalive: true,
-        signal: controller.signal,
-        // qaContext removed — server fetches it from DB, sending it wastes bandwidth
-        body: JSON.stringify({ message: userMessage.content, history: recentHistory, virtualSelfId }),
+      const res  = await fetch("/api/chat/shared", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: userMessage.content, history: recentHistory, virtualSelfId, qaContext }),
       });
-      clearTimeout(timeoutId);
-
-      // Read body ONCE — stream can only be consumed once
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        clientLog.error("/chat/[slug]", "chat/shared non-ok", { status: res.status, virtualSelfId, slug, data });
-      }
-      // Merge both updates into one setMessages to avoid double render
-      setMessages(prev => [
-        ...prev.map(m => m.id === userMessage.id ? { ...m, status: "sent" as const } : m),
-        {
-          id: Date.now() + 1, role: "assistant" as const,
-          content: data.text ?? data.error ?? "Sorry, something went wrong.",
-          timestamp: new Date(),
-        }
-      ]);
-      setIsTyping(false);
-    } catch (err) {
-      clearTimeout(timeoutId);
-      const isTimeout = err instanceof Error && err.name === "AbortError";
-      clientLog.error("/chat/[slug]", isTimeout ? "sendMessage timed out" : "sendMessage fetch threw",
-        { slug, virtualSelfId, err: err instanceof Error ? err.message : String(err) });
-      setMessages(prev => prev.map(m =>
-        m.id === userMessage.id
-          ? { ...m, status: "failed" as const, failReason: isTimeout ? "timeout" : "network" }
-          : m
-      ));
+      const data = await res.json();
+      setMessages(prev => prev.map(m => m.id === userMessage.id ? { ...m, status: "sent" } : m));
+      setMessages(prev => [...prev, {
+        id: Date.now() + 1, role: "assistant",
+        content: data.text ?? data.error ?? "Sorry, something went wrong.",
+        timestamp: new Date(),
+      }]);
+    } catch {
+      setMessages(prev => prev.map(m => m.id === userMessage.id ? { ...m, status: "failed" } : m));
       setRetryMessage(userMessage);
-      setIsTyping(false);
-    }
+    } finally { setIsTyping(false); }
   };
 
   const hasMessages = messages.length > 0;
@@ -316,23 +272,20 @@ export default function SharedChatPage({ params: _ }: PageProps) {
         }
 
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-        html,body{height:100%}
+        html,body{height:100%;overflow:hidden}
         body{font-family:var(--font-body);background:var(--c-bg);color:var(--c-text)}
 
-        .page{display:flex;flex-direction:column;height:100dvh;overflow:hidden;background:var(--c-bg)}
-        .body-row{display:flex;flex:1;overflow:hidden;position:relative;min-height:0}
+        .page{display:flex;flex-direction:column;height:100dvh;overflow:hidden;background:var(--c-bg);/* navbar is first flex child, body-row is second — no fixed/padding needed */}
+        .body-row{display:flex;flex:1;overflow:hidden;position:relative;min-height:0;min-width:0}
 
         /* ── Navbar ── */
         .navbar{
           display:flex;align-items:center;justify-content:space-between;
           padding:0 12px;height:52px;
           background:var(--c-surface);border-bottom:1px solid var(--c-border);
-          flex-shrink:0;gap:8px;position:fixed;top:0;left:0;right:0;z-index:100;
-        }
-        .body-row{padding-top:52px}
-        @media(min-width:640px){
-          .navbar{position:relative;top:auto;left:auto;right:auto;}
-          .body-row{padding-top:0}
+          flex-shrink:0;gap:8px;z-index:30;
+          /* Stay in normal flex flow — page is height:100dvh so no fixed needed */
+          position:relative;
         }
         .nb-left{display:flex;align-items:center;gap:8px;min-width:0;flex:1}
         .nb-logo{
@@ -472,17 +425,9 @@ export default function SharedChatPage({ params: _ }: PageProps) {
         .sb-del svg{width:12px;height:12px}
 
         /* ── Main ── */
-        .main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;min-height:0;position:relative}
+        .main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;min-height:0}
 
-        /* Welcome overlay — sits above conversation, fades away on first message */
-        .welcome-overlay{
-          position:absolute;inset:0;z-index:10;
-          display:flex;flex-direction:column;
-          align-items:center;justify-content:center;
-          padding:24px 16px;overflow-y:auto;
-          background:var(--c-bg);
-          -webkit-overflow-scrolling:touch;
-        }
+        /* ── Overlays ── */
         .overlay{
           position:fixed;inset:0;z-index:50;
           display:flex;align-items:center;justify-content:center;
@@ -522,6 +467,14 @@ export default function SharedChatPage({ params: _ }: PageProps) {
         .dismiss-btn:hover{border-color:var(--c-text);color:var(--c-text)}
 
         /* ── Welcome ── */
+        .welcome{
+          flex:1;display:flex;flex-direction:column;
+          align-items:center;justify-content:center;
+          padding:24px 16px;overflow-y:auto;
+          -webkit-overflow-scrolling:touch;
+          /* Ensure welcome fills remaining height on iOS */
+          min-height:0;
+        }
         .wc-inner{width:100%;max-width:460px;display:flex;flex-direction:column;align-items:center;text-align:center;}
         .av-wrap{position:relative;margin-bottom:18px}
         .av-ring{
@@ -574,21 +527,6 @@ export default function SharedChatPage({ params: _ }: PageProps) {
         .t-dot:nth-child(2){animation-delay:.15s}
         .t-dot:nth-child(3){animation-delay:.3s}
         @keyframes tdot{0%,80%,100%{transform:translateY(0);opacity:.4}40%{transform:translateY(-5px);opacity:1}}
-
-        /* Retry chip on failed messages */
-        .msg-retry-chip{
-          display:inline-flex;align-items:center;gap:4px;
-          padding:4px 10px;border-radius:20px;
-          border:1px solid #FCA5A5;background:#FEF2F2;color:#EF4444;
-          font-size:.68rem;font-family:var(--font-body);
-          cursor:pointer;margin-top:3px;
-          min-height:28px;transition:background .14s;
-        }
-        .msg-retry-chip:active{background:#FEE2E2}
-        .msg-retry-chip svg{flex-shrink:0}
-        [data-mode="dark"] .msg-retry-chip{
-          background:#2D1515;border-color:#7F1D1D;color:#FCA5A5;
-        }
 
         /* Input bar */
         .input-bar{
@@ -788,14 +726,6 @@ export default function SharedChatPage({ params: _ }: PageProps) {
                               <div className={`msg-bub ${isUser ? 'msg-bub--user' : 'msg-bub--bot'} ${msg.status === 'failed' ? 'msg-bub--failed' : ''}`}>
                                 {msg.content}
                               </div>
-                              {msg.status === 'failed' && (
-                                <button
-                                  className="msg-retry-chip"
-                                  onClick={() => sendMessage(msg)}
-                                  title="Tap to retry">
-                                  <RefreshCw size={10} /> Tap to retry
-                                </button>
-                              )}
                             </div>
                           </motion.div>
                         );
