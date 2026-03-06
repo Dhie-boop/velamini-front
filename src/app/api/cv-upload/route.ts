@@ -33,8 +33,8 @@ export async function POST(req: NextRequest) {
 
     if (ext === "pdf") {
       // Dynamically import so Next.js doesn't try to bundle it for edge
-      // Use the core lib directly — the package index loads @napi-rs/canvas
-      // which crashes in Next.js serverless. lib/pdf-parse.js has no canvas deps.
+      // Use lib/pdf-parse.js directly (v1.x) — the index loads test fixtures
+      // at require-time which crash in Next.js. The lib file is clean.
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const pdfParse = require("pdf-parse/lib/pdf-parse.js") as (buf: Buffer) => Promise<{ text: string }>;
       const data = await pdfParse(buffer);
