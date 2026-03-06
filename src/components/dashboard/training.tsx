@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Save,
   User,
@@ -584,9 +584,8 @@ export default function TrainingView({ knowledgeBase }: TrainingViewProps) {
           {/* Desktop step rail */}
           <div className="tv-rail">
             {STEPS.map((step, index) => (
-              <>
+              <React.Fragment key={step.id}>
                 <div
-                  key={step.id}
                   className={`tv-rail-step ${currentStep === step.id ? "tv-rail-step--active" : ""}`}
                   onClick={() => goToStep(step.id)}
                 >
@@ -605,11 +604,10 @@ export default function TrainingView({ knowledgeBase }: TrainingViewProps) {
                 </div>
                 {index < STEPS.length - 1 && (
                   <div
-                    key={`connector-${step.id}`}
                     className={`tv-rail-connector ${currentStep > step.id ? "tv-rail-connector--done" : ""}`}
                   />
                 )}
-              </>
+              </React.Fragment>
             ))}
           </div>
 
