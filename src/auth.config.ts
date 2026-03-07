@@ -67,9 +67,19 @@ export const authConfig: NextAuthConfig = {
         pathname.startsWith("/settings")
 
       if (isOnAuth) {
+        // /auth/org/* pages are accessible even when logged in — they handle org creation
+        // for users who already have a personal account
+        if (pathname.startsWith("/auth/org")) return true
+
         if (isLoggedIn) {
+          // Preserve ?create=org so authenticated users can still create an organisation
           const callbackUrl = nextUrl.searchParams.get("callbackUrl") || "/onboarding"
-          return Response.redirect(new URL(callbackUrl, nextUrl))
+          const dest = new URL(callbackUrl, nextUrl)
+          // If org creation was requested, pass it through
+          if (nextUrl.searchParams.get("create") === "org" && !dest.searchParams.has("create")) {
+            dest.searchParams.set("create", "org")
+          }
+          return Response.redirect(dest)
         }
         return true
       }

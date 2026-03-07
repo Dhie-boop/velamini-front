@@ -54,6 +54,7 @@ export default function OnboardingPage() {
   const [step,             setStep]             = useState<1 | 2>(1);
   const [selectedType,     setSelectedType]     = useState<AccountType>(null);
   const [orgName,          setOrgName]          = useState("");
+  const [orgEmail,         setOrgEmail]         = useState("");
   const [orgWebsite,       setOrgWebsite]       = useState("");
   const [orgIndustry,      setOrgIndustry]      = useState("");
   const [orgDescription,   setOrgDescription]   = useState("");
@@ -86,12 +87,30 @@ export default function OnboardingPage() {
         localStorage.removeItem("ob_account_type");
         // Block personal emails for org accounts
         if (saved === "organization" && isPersonalEmail(session?.user?.email)) {
-          setSelectedType(null);
-          setError("Organisation accounts require a work/business email (e.g. name@yourcompany.com). Please sign in again with your work email.");
+          setSelectedType("organization");
+          setError("That email is a personal address. Organisation accounts require a work/business email — click \"Continue with work email\" below to sign in with your company Google account.");
           return;
         }
         setSelectedType(saved);
         if (saved === "organization") setStep(2);
+        // Personal: auto-proceed after sign-in redirect
+        if (saved === "personal") {
+          setTimeout(() => {
+            setLoading(true);
+            fetch("/api/user/onboarding", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ accountType: "personal" }),
+            })
+              .then(r => r.json())
+              .then(d => {
+                if (d.ok) router.push("/Dashboard");
+                else setError(d.error || "Something went wrong.");
+              })
+              .catch(() => setError("Something went wrong. Please try again."))
+              .finally(() => setLoading(false));
+          }, 0);
+        }
       }
     } catch {}
   }, [status, session?.user?.email]);  // eslint-disable-line
@@ -99,10 +118,21 @@ export default function OnboardingPage() {
   // Only redirect away if the user has already completed onboarding
   useEffect(() => {
     if (status !== "authenticated") return;
+    // ?create=org OR pending localStorage type: skip redirect so user can set up an org
+    const searchParams = new URLSearchParams(window.location.search);
+    const pendingType = (() => { try { return localStorage.getItem("ob_account_type"); } catch { return null; } })();
+    if (searchParams.get("create") === "org" || pendingType === "organization") {
+      setSelectedType("organization");
+      setStep(2);
+      return;
+    }
     fetch("/api/user/onboarding")
       .then(r => r.json())
       .then(d => {
         if (d.ok && d.user?.onboardingComplete) {
+          // For org accounts, only redirect if they actually have an org — otherwise stay on
+          // onboarding so they can create one (prevents infinite loop with /Dashboard/organizations)
+          if (d.user.accountType === "organization" && !d.user.hasOrganization) return;
           router.push(
             d.user.accountType === "organization"
               ? "/Dashboard/organizations"
@@ -133,17 +163,25 @@ export default function OnboardingPage() {
     // Step 1 → Step 2 for org
     if (step === 1) {
       if (!selectedType) { setError("Please choose an account type."); return; }
-      if (selectedType === "personal") { await submit(); return; }
+      if (selectedType === "personal") {
+        if (status !== "authenticated") {
+          // Not signed in — send to sign-in page, then back to onboarding
+          try { localStorage.setItem("ob_account_type", "personal"); } catch {}
+          router.push("/auth/signin?callbackUrl=/onboarding");
+          return;
+        }
+        await submit();
+        return;
+      }
       setStep(2); return;
     }
 
     // Step 2 (org details)
     if (!orgName.trim())  { setError("Organisation name is required."); return; }
+    if (!orgEmail.trim()) { setError("Contact email is required."); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(orgEmail)) { setError("Please enter a valid email address."); return; }
+    if (isPersonalEmail(orgEmail)) { setError("Please use a work/business email address for the contact email (e.g. name@yourcompany.com)."); return; }
     if (!agentName.trim()){ setError("Agent name is required."); return; }
-    if (isPersonalEmail(session?.user?.email)) {
-      setError("Organisation accounts require a work/business email (e.g. name@yourcompany.com).");
-      return;
-    }
     await submit();
   };
 
@@ -156,6 +194,7 @@ export default function OnboardingPage() {
         body: JSON.stringify({
           accountType:        selectedType,
           organizationName:   selectedType === "organization" ? orgName          : undefined,
+          contactEmail:       selectedType === "organization" ? orgEmail          : undefined,
           website:            selectedType === "organization" ? orgWebsite        : undefined,
           industry:           selectedType === "organization" ? orgIndustry       : undefined,
           description:        selectedType === "organization" ? orgDescription    : undefined,
@@ -177,7 +216,7 @@ export default function OnboardingPage() {
     }
   };
 
-  const isStep2Valid = orgName.trim() && agentName.trim();
+  const isStep2Valid = orgName.trim() && orgEmail.trim() && agentName.trim();
 
   return (
     <>
@@ -503,9 +542,18 @@ export default function OnboardingPage() {
                           </button>
                         </>
                       ) : (
-                        <button className="ob-google-btn" disabled={!selectedType} onClick={handleGoogleSignIn}>
-                          <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.08 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-3.58-13.46-8.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
-                          {selectedType === "organization" ? "Continue with work email" : "Continue with Google"}
+                        <button
+                          className="ob-continue"
+                          disabled={!selectedType}
+                          onClick={() => {
+                            if (selectedType === "organization") {
+                              router.push("/auth/org/login");
+                            } else {
+                              router.push("/auth/signin?callbackUrl=/onboarding");
+                            }
+                          }}
+                        >
+                          {selectedType === "organization" ? <>Continue <ArrowRight size={15}/></> : <>Get started <ArrowRight size={15}/></>}
                         </button>
                       )}
                     </div>
@@ -529,6 +577,11 @@ export default function OnboardingPage() {
                           <label>Website</label>
                           <input className="ob-input" placeholder="https://acme.com" value={orgWebsite} onChange={e=>setOrgWebsite(e.target.value)}/>
                         </div>
+                      </div>
+
+                      <div className="ob-field">
+                        <label>Contact / billing email <span>*</span></label>
+                        <input className="ob-input" type="email" placeholder="you@yourcompany.com" value={orgEmail} onChange={e=>setOrgEmail(e.target.value)}/>
                       </div>
 
                       <div className="ob-form-grid">

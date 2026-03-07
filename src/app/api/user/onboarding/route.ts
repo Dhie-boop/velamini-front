@@ -13,6 +13,7 @@ export async function POST(req: Request) {
     const {
       accountType,
       organizationName,
+      contactEmail,
       industry,
       website,
       description,
@@ -43,6 +44,7 @@ export async function POST(req: Request) {
       await prisma.organization.create({
         data: {
           name: organizationName,
+          contactEmail: contactEmail || undefined,
           industry: industry || undefined,
           website: website || undefined,
           description: description || undefined,
@@ -82,10 +84,18 @@ export async function GET(req: Request) {
       select: {
         accountType: true,
         onboardingComplete: true,
+        organizations: { select: { id: true }, take: 1 },
       },
     });
 
-    return NextResponse.json({ ok: true, user });
+    return NextResponse.json({
+      ok: true,
+      user: {
+        accountType: user?.accountType,
+        onboardingComplete: user?.onboardingComplete,
+        hasOrganization: (user?.organizations?.length ?? 0) > 0,
+      },
+    });
   } catch (error) {
     console.error("Get onboarding status error:", error);
     return NextResponse.json(

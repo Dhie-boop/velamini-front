@@ -86,6 +86,12 @@ function SignInContent() {
     signIn("google", { callbackUrl });
   };
 
+  const handleOrgSignIn = () => {
+    try { localStorage.setItem("ob_account_type", "organization"); } catch {}
+    setIsSigningIn(true);
+    signIn("google", { callbackUrl: "/onboarding?create=org" });
+  };
+
   return (
     <>
       <style>{`
@@ -399,6 +405,34 @@ function SignInContent() {
         .si-footer a{color:var(--si-muted);text-decoration:none;transition:color .15s}
         .si-footer a:hover{color:var(--si-accent)}
 
+        /* Divider */
+        .si-divider{
+          display:flex;align-items:center;gap:10px;
+          margin:14px 0;
+          color:var(--si-muted);font-size:.72rem;
+        }
+        .si-divider::before,.si-divider::after{
+          content:'';flex:1;height:1px;background:var(--si-border);
+        }
+
+        /* Org button */
+        .si-org-btn{
+          width:100%;display:flex;align-items:center;justify-content:center;gap:10px;
+          padding:11px 20px;border-radius:13px;
+          background:transparent;
+          border:1.5px solid var(--si-border);
+          color:var(--si-muted);font-size:.84rem;font-weight:500;
+          font-family:'DM Sans',system-ui,sans-serif;
+          cursor:pointer;transition:all .2s;
+          min-height:44px;
+        }
+        .si-org-btn:hover{
+          border-color:var(--si-accent);
+          color:var(--si-text);
+          background:color-mix(in srgb,var(--si-accent) 6%,transparent);
+        }
+        .si-org-btn:disabled{opacity:.55;cursor:not-allowed}
+
         /* Loading spinner in button */
         @keyframes spin{to{transform:rotate(360deg)}}
         .si-spinner{
@@ -531,6 +565,25 @@ function SignInContent() {
                     </>
                   )}
                 </motion.button>
+
+                <div className="si-divider">or</div>
+
+                <Link
+                  href="/auth/org/signup"
+                  style={{
+                    width: "100%", display: "flex", alignItems: "center", justifyContent: "center",
+                    gap: 10, padding: "11px 20px", borderRadius: 13,
+                    background: "transparent", border: "1.5px solid var(--si-border)",
+                    color: "var(--si-muted)", fontSize: ".84rem", fontWeight: 500,
+                    fontFamily: "'DM Sans',system-ui,sans-serif", textDecoration: "none",
+                    transition: "all .2s", minHeight: 44, boxSizing: "border-box",
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/>
+                  </svg>
+                  Register / sign in as Organisation
+                </Link>
 
                 <div className="si-trust">
                   <div className="si-trust-item"><Shield size={12} /><span>Secure OAuth</span></div>
