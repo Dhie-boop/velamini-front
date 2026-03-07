@@ -632,23 +632,16 @@ export default function DocsPage() {
         @media(max-width:600px){.div{margin:0 16px}}
 
         /* prev/next */
-        .pn{max-width:760px;margin:0 auto;padding:20px 28px 44px;display:flex;align-items:stretch;gap:12px}
+        .pn{max-width:960px;margin:0 auto;padding:24px 28px 48px;display:flex;align-items:stretch;gap:12px}
         @media(max-width:600px){.pn{padding:16px 16px 36px;flex-direction:column}}
-        .pn-btn{flex:1;display:flex;align-items:center;gap:12px;padding:16px 18px;border-radius:14px;border:1px solid var(--br);background:var(--su);cursor:pointer;font-family:inherit;transition:border-color .18s,box-shadow .18s,transform .18s,background .18s;text-align:left;position:relative;overflow:hidden}
+        .pn-btn{flex:1;display:flex;align-items:center;gap:10px;padding:18px 24px;border-radius:14px;border:1px solid var(--br);background:var(--su);cursor:pointer;font-family:inherit;transition:border-color .18s,box-shadow .18s,transform .18s,background .18s;text-align:left;position:relative;overflow:hidden;width:100%}
         .pn-btn:hover{border-color:color-mix(in srgb,var(--a) 55%,transparent);background:color-mix(in srgb,var(--a) 5%,var(--su));box-shadow:0 6px 24px color-mix(in srgb,var(--a) 14%,transparent),0 1px 4px rgba(0,0,0,.08);transform:translateY(-2px)}
         .pn-btn:active{transform:translateY(0)}
         .pn-r{justify-content:flex-end;text-align:right}
-        .pn-ico-wrap{display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:10px;flex-shrink:0;background:color-mix(in srgb,var(--a) 10%,transparent);border:1px solid color-mix(in srgb,var(--a) 18%,transparent);transition:background .16s,border-color .16s}
-        .pn-btn:hover .pn-ico-wrap{background:color-mix(in srgb,var(--a) 18%,transparent);border-color:color-mix(in srgb,var(--a) 36%,transparent)}
-        .pn-sec-ico{color:var(--a);opacity:.9}
-        .pn-arrow{color:var(--mu);flex-shrink:0;transition:color .15s,transform .18s}
-        .pn-btn:hover .pn-arrow{color:var(--a)}
+        .pn-arrow{color:var(--a);flex-shrink:0;transition:color .15s,transform .18s}
         .pn-prev:hover .pn-arrow{transform:translateX(-3px)}
         .pn-next:hover .pn-arrow{transform:translateX(3px)}
-        .pn-lbl{font-size:.58rem;font-weight:800;text-transform:uppercase;letter-spacing:.09em;color:var(--mu);margin-bottom:3px}
-        .pn-nm{font-size:.84rem;font-weight:700;color:var(--fg);line-height:1.3}
-        .pn-grp{font-size:.67rem;color:var(--mu);margin-top:3px;opacity:.65}
-        @media(max-width:480px){.pn-nm{font-size:.78rem}}
+        .pn-nm{font-size:1rem;font-weight:700;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
         /* code block */
         .cb{position:relative;margin-bottom:14px;border-radius:11px;overflow:hidden;border:1px solid #1a3248}
@@ -733,29 +726,15 @@ export default function DocsPage() {
         <div className="pn">
           {prev ? (
             <button className="pn-btn pn-prev" onClick={() => goTo(current - 1, "l")}>
-              <ChevronLeft size={15} className="pn-arrow"/>
-              <div style={{ flex:1, minWidth:0 }}>
-                <div className="pn-lbl">Previous</div>
-                <div className="pn-nm">{prev.label}</div>
-                <div className="pn-grp">{prev.group}</div>
-              </div>
-              <div className="pn-ico-wrap">
-                <prev.Icon size={14} className="pn-sec-ico"/>
-              </div>
+              <ChevronLeft size={18} className="pn-arrow"/>
+              <span className="pn-nm">{prev.label}</span>
             </button>
           ) : <div style={{ flex:1 }}/>}
 
           {next ? (
             <button className="pn-btn pn-next pn-r" onClick={() => goTo(current + 1, "r")}>
-              <div className="pn-ico-wrap">
-                <next.Icon size={14} className="pn-sec-ico"/>
-              </div>
-              <div style={{ flex:1, minWidth:0 }}>
-                <div className="pn-lbl" style={{ justifyContent:"flex-end" }}>Next</div>
-                <div className="pn-nm">{next.label}</div>
-                <div className="pn-grp">{next.group}</div>
-              </div>
-              <ChevronRight size={15} className="pn-arrow"/>
+              <span className="pn-nm" style={{ flex:1 }}>{next.label}</span>
+              <ChevronRight size={18} className="pn-arrow"/>
             </button>
           ) : (
             <div style={{ flex:1, display:"flex", justifyContent:"flex-end" }}>
