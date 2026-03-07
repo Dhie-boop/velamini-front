@@ -10,7 +10,15 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { accountType, organizationName, industry } = body;
+    const {
+      accountType,
+      organizationName,
+      industry,
+      website,
+      description,
+      agentName,
+      agentPersonality,
+    } = body;
 
     if (!accountType || (accountType !== "personal" && accountType !== "organization")) {
       return NextResponse.json(
@@ -30,10 +38,17 @@ export async function POST(req: Request) {
 
     // If organization account, create the first organization
     if (accountType === "organization" && organizationName) {
+      const { randomUUID } = await import("crypto");
+      const apiKey = `vela_${randomUUID().replace(/-/g, "")}`;
       await prisma.organization.create({
         data: {
           name: organizationName,
           industry: industry || undefined,
+          website: website || undefined,
+          description: description || undefined,
+          agentName: agentName || undefined,
+          agentPersonality: agentPersonality || undefined,
+          apiKey,
           ownerId: session.user.id,
         },
       });

@@ -2,702 +2,252 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  ArrowLeft, Zap, Brain, Code2, BarChart3, Settings,
+  Sun, Moon, Building2,
+} from "lucide-react";
 
-interface Organization {
-  id: string;
-  name: string;
-  description?: string;
-  whatsappNumber?: string;
-  displayName?: string;
-  planType: string;
-  isActive: boolean;
-  monthlyMessageCount: number;
-  monthlyMessageLimit: number;
-  totalConversations: number;
-  totalMessages: number;
-  businessHoursEnabled: boolean;
-  businessHoursStart?: string;
-  businessHoursEnd?: string;
-  timezone?: string;
-  autoReplyEnabled: boolean;
-  welcomeMessage?: string;
-  industry?: string;
-  website?: string;
-  contactEmail?: string;
-  knowledgeBase?: {
-    id: string;
-    isModelTrained: boolean;
-    lastTrainedAt?: string;
-  };
-}
+import OrgOverview   from "@/components/organization/overview";
+import OrgAgent      from "@/components/organization/agent";
+import OrgApi        from "@/components/organization/api";
+import OrgAnalytics  from "@/components/organization/analytics";
+import OrgSettings   from "@/components/organization/settings";
+import { ORG_CSS }   from "@/types/organization/org-type";
+import type { Organization, Stats, OrgTab } from "@/types/organization/org-type";
 
-interface Stats {
-  totalConversations: number;
-  totalMessages: number;
-  monthlyMessageCount: number;
-  monthlyMessageLimit: number;
-  usagePercentage: number;
-  recentConversations: any[];
-}
-
-type Tab = "overview" | "settings" | "ai" | "analytics";
+// ── Tab config ───────────────────────────────────────────────────────────────
+const TABS: { id: OrgTab; label: string; Icon: any }[] = [
+  { id: "overview",  label: "Overview",    Icon: Zap      },
+  { id: "agent",     label: "AI Agent",    Icon: Brain    },
+  { id: "api",       label: "API & Embed", Icon: Code2    },
+  { id: "analytics", label: "Analytics",   Icon: BarChart3},
+  { id: "settings",  label: "Settings",    Icon: Settings },
+];
 
 export default function OrganizationDetailPage() {
-  const params = useParams();
-  const router = useRouter();
-  const orgId = params?.id as string;
+  const params  = useParams();
+  const router  = useRouter();
+  const orgId   = params?.id as string;
 
-  const [organization, setOrganization] = useState<Organization | null>(null);
-  const [stats, setStats] = useState<Stats | null>(null);
+  const [org,     setOrg]     = useState<Organization | null>(null);
+  const [stats,   setStats]   = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<Tab>("overview");
-  const [saving, setSaving] = useState(false);
+  const [tab,     setTab]     = useState<OrgTab>("overview");
+  const [saving,  setSaving]  = useState(false);
+  const [saved,   setSaved]   = useState(false);
+  const [error,   setError]   = useState("");
+  const [isDark,  setIsDark]  = useState(true);
+  const [mounted, setMounted] = useState(false);
 
-  // Number provisioning
-  const [showNumberSearch, setShowNumberSearch] = useState(false);
-  const [searchCountry, setSearchCountry] = useState("US");
-  const [availableNumbers, setAvailableNumbers] = useState<any[]>([]);
-  const [searchingNumbers, setSearchingNumbers] = useState(false);
-  const [provisioning, setProvisioning] = useState(false);
-
+  // ── Theme ──────────────────────────────────────────────────────────────────
   useEffect(() => {
-    fetchOrganization();
-    fetchStats();
-  }, [orgId]);
-
-  const fetchOrganization = async () => {
+    setMounted(true);
     try {
-      const res = await fetch(`/api/organizations/${orgId}`);
-      const data = await res.json();
-      if (data.ok) {
-        setOrganization(data.organization);
-      }
-    } catch (error) {
-      console.error("Failed to fetch organization:", error);
-    } finally {
-      setLoading(false);
-    }
+      const stored = localStorage.getItem("theme") || "dark";
+      setIsDark(stored === "dark");
+      document.documentElement.setAttribute("data-mode", stored);
+    } catch {}
+  }, []);
+
+  const toggleTheme = () => {
+    const next = !isDark;
+    setIsDark(next);
+    const mode = next ? "dark" : "light";
+    document.documentElement.setAttribute("data-mode", mode);
+    localStorage.setItem("theme", mode);
+  };
+
+  // ── Data fetch ─────────────────────────────────────────────────────────────
+  useEffect(() => { fetchOrg(); fetchStats(); }, [orgId]);
+
+  const fetchOrg = async () => {
+    try {
+      const r = await fetch(`/api/organizations/${orgId}`);
+      const d = await r.json();
+      if (d.ok) setOrg(d.organization);
+    } catch {}
+    finally { setLoading(false); }
   };
 
   const fetchStats = async () => {
     try {
-      const res = await fetch(`/api/organizations/${orgId}/stats`);
-      const data = await res.json();
-      if (data.ok) {
-        setStats(data.stats);
-      }
-    } catch (error) {
-      console.error("Failed to fetch stats:", error);
-    }
+      const r = await fetch(`/api/organizations/${orgId}/stats`);
+      const d = await r.json();
+      if (d.ok) setStats(d.stats);
+    } catch {}
   };
 
-  const searchNumbers = async () => {
-    setSearchingNumbers(true);
+  // ── Save helper (passed to child components) ───────────────────────────────
+  const handleSave = async (updates: Partial<Organization>) => {
+    setSaving(true); setSaved(false); setError("");
     try {
-      const res = await fetch(
-        `/api/organizations/search-numbers?country=${searchCountry}`
-      );
-      const data = await res.json();
-      if (data.ok) {
-        setAvailableNumbers(data.numbers);
-      } else {
-        alert(data.error || "Failed to search numbers");
-      }
-    } catch (error) {
-      console.error("Search numbers error:", error);
-      alert("Failed to search numbers");
-    } finally {
-      setSearchingNumbers(false);
-    }
-  };
-
-  const provisionNumber = async (phoneNumber: string) => {
-    if (!confirm(`Provision number ${phoneNumber}? This will incur charges.`)) {
-      return;
-    }
-
-    setProvisioning(true);
-    try {
-      const res = await fetch(`/api/organizations/${orgId}/provision-number`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phoneNumber }),
-      });
-
-      const data = await res.json();
-      if (data.ok) {
-        alert("Number provisioned successfully!");
-        setShowNumberSearch(false);
-        fetchOrganization();
-      } else {
-        alert(data.error || "Failed to provision number");
-      }
-    } catch (error) {
-      console.error("Provision number error:", error);
-      alert("Failed to provision number");
-    } finally {
-      setProvisioning(false);
-    }
-  };
-
-  const releaseNumber = async () => {
-    if (
-      !confirm(
-        "Are you sure you want to release this number? This action cannot be undone."
-      )
-    ) {
-      return;
-    }
-
-    try {
-      const res = await fetch(`/api/organizations/${orgId}/provision-number`, {
-        method: "DELETE",
-      });
-
-      const data = await res.json();
-      if (data.ok) {
-        alert("Number released successfully");
-        fetchOrganization();
-      } else {
-        alert(data.error || "Failed to release number");
-      }
-    } catch (error) {
-      console.error("Release number error:", error);
-      alert("Failed to release number");
-    }
-  };
-
-  const updateOrganization = async (updates: Partial<Organization>) => {
-    setSaving(true);
-    try {
-      const res = await fetch(`/api/organizations/${orgId}`, {
+      const r = await fetch(`/api/organizations/${orgId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updates),
       });
-
-      const data = await res.json();
-      if (data.ok) {
-        setOrganization(data.organization);
-        alert("Settings saved successfully");
+      const d = await r.json();
+      if (d.ok) {
+        setOrg(d.organization);
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2400);
       } else {
-        alert(data.error || "Failed to save settings");
+        setError(d.error || "Failed to save.");
       }
-    } catch (error) {
-      console.error("Update organization error:", error);
-      alert("Failed to save settings");
+    } catch {
+      setError("Something went wrong. Please try again.");
     } finally {
       setSaving(false);
     }
   };
 
-  const trainAI = () => {
-    router.push(`/Dashboard/training?orgId=${orgId}`);
-  };
+  // ── Loading / not found ────────────────────────────────────────────────────
+  if (loading) return (
+    <div style={{ minHeight:"100dvh", display:"flex", alignItems:"center", justifyContent:"center", background:"var(--c-bg)" }}>
+      <style>{ORG_CSS}</style>
+      <div className="od-spinner od-spinner--dark" style={{ width:32, height:32, borderWidth:3 }} />
+    </div>
+  );
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-      </div>
-    );
-  }
-
-  if (!organization) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-            Organization not found
-          </h1>
-          <button
-            onClick={() => router.push("/Dashboard/organizations")}
-            className="text-blue-600 hover:underline"
-          >
-            Back to organizations
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  const usagePercentage = stats?.usagePercentage || 0;
+  if (!org) return (
+    <div style={{ minHeight:"100dvh", display:"flex", alignItems:"center", justifyContent:"center", background:"var(--c-bg)", flexDirection:"column", gap:14 }}>
+      <style>{ORG_CSS}</style>
+      <div style={{ fontFamily:"DM Serif Display,serif", fontSize:"1.3rem", color:"var(--c-text)" }}>Organisation not found</div>
+      <button className="od-btn od-btn--ghost" onClick={() => router.push("/Dashboard/organizations")}>
+        <ArrowLeft size={13}/> Back to organisations
+      </button>
+    </div>
+  );
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-7xl">
-      {/* Header */}
-      <div className="mb-8">
-        <button
-          onClick={() => router.push("/Dashboard/organizations")}
-          className="text-blue-600 hover:underline mb-4 flex items-center gap-2"
-        >
-          ← Back to Organizations
-        </button>
-        <div className="flex justify-between items-start">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-              {organization.name}
-            </h1>
-            {organization.description && (
-              <p className="text-gray-600 dark:text-gray-400 mt-2">
-                {organization.description}
-              </p>
-            )}
+    <>
+      <style>{ORG_CSS}</style>
+      <style>{`
+        /* ── Page shell ─────────────────────────────────────────────────────── */
+        .odp{min-height:100dvh;background:var(--c-bg);transition:background .3s}
+        .odp-inner{max-width:1020px;margin:0 auto;padding:20px 14px 72px}
+        @media(min-width:600px){.odp-inner{padding:28px 24px 80px}}
+        @media(min-width:1024px){.odp-inner{padding:36px 40px 80px}}
+
+        /* ── Header ─────────────────────────────────────────────────────────── */
+        .odp-hd{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:26px}
+        .odp-hd-left{display:flex;align-items:center;gap:13px;min-width:0}
+        .odp-org-ic{width:50px;height:50px;border-radius:14px;background:var(--c-org-soft);border:1.5px solid color-mix(in srgb,var(--c-org) 24%,transparent);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--c-org)}
+        .odp-org-ic svg{width:22px;height:22px}
+        .odp-name{font-family:'DM Serif Display',Georgia,serif;font-size:clamp(1.35rem,4vw,1.8rem);font-weight:400;letter-spacing:-.022em;color:var(--c-text);line-height:1.2}
+        .odp-desc{font-size:.76rem;color:var(--c-muted);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:360px}
+        .odp-hd-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+
+        /* status chip */
+        .odp-chip{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:20px;font-size:.64rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+        .odp-chip--active{background:var(--c-success-soft);color:var(--c-success)}
+        .odp-chip--inactive{background:var(--c-danger-soft);color:var(--c-danger)}
+        .odp-chip-dot{width:5px;height:5px;border-radius:50%;background:currentColor;animation:chipPulse 2s infinite}
+        @keyframes chipPulse{0%,100%{opacity:.4;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}
+
+        /* theme btn */
+        .odp-theme-btn{display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;border:1px solid var(--c-border);background:var(--c-surface-2);color:var(--c-muted);cursor:pointer;transition:all .14s}
+        .odp-theme-btn:hover{color:var(--c-accent);border-color:var(--c-accent);background:var(--c-accent-soft)}
+        .odp-theme-btn svg{width:14px;height:14px}
+
+        /* ── Tabs ────────────────────────────────────────────────────────────── */
+        .odp-tabs{display:flex;gap:2px;background:var(--c-surface-2);border:1px solid var(--c-border);border-radius:14px;padding:4px;overflow-x:auto;scrollbar-width:none;margin-bottom:22px}
+        .odp-tabs::-webkit-scrollbar{display:none}
+        .odp-tab{display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:10px;border:none;background:none;font-size:.76rem;font-weight:600;color:var(--c-muted);cursor:pointer;font-family:inherit;transition:all .14s;white-space:nowrap;flex-shrink:0}
+        .odp-tab:hover{color:var(--c-text);background:var(--c-surface)}
+        .odp-tab--on{background:var(--c-surface)!important;color:var(--c-org);box-shadow:var(--shadow-sm)}
+        .odp-tab svg{width:13px;height:13px}
+      `}</style>
+
+      <div className="odp">
+        <div className="odp-inner">
+
+          {/* Back link */}
+          <button className="od-btn od-btn--ghost"
+            style={{ marginBottom:18, fontSize:".74rem", padding:"6px 12px" }}
+            onClick={() => router.push("/Dashboard/organizations")}>
+            <ArrowLeft size={13}/> All organisations
+          </button>
+
+          {/* Header */}
+          <div className="odp-hd">
+            <div className="odp-hd-left">
+              <div className="odp-org-ic"><Building2 size={22}/></div>
+              <div style={{ minWidth:0 }}>
+                <div className="odp-name">{org.name}</div>
+                {org.description && <div className="odp-desc">{org.description}</div>}
+              </div>
+            </div>
+            <div className="odp-hd-right">
+              <span className={`odp-chip ${org.isActive ? "odp-chip--active" : "odp-chip--inactive"}`}>
+                <span className="odp-chip-dot"/>
+                {org.isActive ? "Active" : "Inactive"}
+              </span>
+              {mounted && (
+                <button className="odp-theme-btn" onClick={toggleTheme} title="Toggle theme">
+                  {isDark ? <Sun size={14}/> : <Moon size={14}/>}
+                </button>
+              )}
+            </div>
           </div>
-          <span
-            className={`px-3 py-1 rounded text-sm font-medium ${
-              organization.isActive
-                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-            }`}
-          >
-            {organization.isActive ? "Active" : "Inactive"}
-          </span>
+
+          {/* Tabs */}
+          <div className="odp-tabs">
+            {TABS.map(({ id, label, Icon }) => (
+              <button key={id}
+                className={`odp-tab ${tab === id ? "odp-tab--on" : ""}`}
+                onClick={() => setTab(id)}>
+                <Icon size={13}/> {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Tab content */}
+          <AnimatePresence mode="wait">
+            <motion.div key={tab}
+              initial={{ opacity:0, y:10 }}
+              animate={{ opacity:1, y:0 }}
+              exit={{ opacity:0, y:-6 }}
+              transition={{ duration:.18, ease:"easeOut" }}>
+
+              {tab === "overview"  && (
+                <OrgOverview org={org} stats={stats} onNavigate={setTab} />
+              )}
+              {tab === "agent" && (
+                <OrgAgent
+                  org={org}
+                  onSave={handleSave}
+                  onRefresh={fetchOrg}
+                  saving={saving}
+                  saved={saved}
+                  error={error}
+                />
+              )}
+              {tab === "api" && (
+                <OrgApi
+                  org={org}
+                  onKeyRotated={(newKey) => setOrg(prev => prev ? { ...prev, apiKey: newKey } : prev)}
+                />
+              )}
+              {tab === "analytics" && (
+                <OrgAnalytics stats={stats} />
+              )}
+              {tab === "settings" && (
+                <OrgSettings
+                  org={org}
+                  onSave={handleSave}
+                  saving={saving}
+                  saved={saved}
+                  error={error}
+                />
+              )}
+
+            </motion.div>
+          </AnimatePresence>
+
         </div>
       </div>
-
-      {/* Tabs */}
-      <div className="border-b border-gray-200 dark:border-gray-700 mb-6">
-        <nav className="flex gap-8">
-          {[
-            { id: "overview", label: "Overview" },
-            { id: "settings", label: "Settings" },
-            { id: "ai", label: "AI Training" },
-            { id: "analytics", label: "Analytics" },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as Tab)}
-              className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
-                activeTab === tab.id
-                  ? "border-blue-500 text-blue-600 dark:text-blue-400"
-                  : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </nav>
-      </div>
-
-      {/* Tab Content */}
-      <div className="space-y-6">
-        {activeTab === "overview" && (
-          <>
-            {/* WhatsApp Number Section */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-                WhatsApp Number
-              </h2>
-
-              {organization.whatsappNumber ? (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                    <div>
-                      <div className="font-mono text-lg font-medium text-gray-900 dark:text-white">
-                        {organization.whatsappNumber}
-                      </div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                        Customers can text this number to access your AI
-                      </div>
-                    </div>
-                    <button
-                      onClick={releaseNumber}
-                      className="px-4 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                    >
-                      Release Number
-                    </button>
-                  </div>
-
-                  <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                    <h3 className="font-medium text-gray-900 dark:text-white mb-2">
-                      📱 How to use:
-                    </h3>
-                    <ol className="text-sm text-gray-700 dark:text-gray-300 space-y-1 list-decimal list-inside">
-                      <li>Save this number in WhatsApp</li>
-                      <li>Train your AI assistant (see AI Training tab)</li>
-                      <li>Share this number with your customers</li>
-                      <li>They can text it anytime to get AI-powered responses</li>
-                    </ol>
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  {!showNumberSearch ? (
-                    <div className="text-center p-6">
-                      <div className="text-4xl mb-3">📱</div>
-                      <p className="text-gray-600 dark:text-gray-400 mb-4">
-                        No WhatsApp number provisioned yet
-                      </p>
-                      <button
-                        onClick={() => {
-                          setShowNumberSearch(true);
-                          searchNumbers();
-                        }}
-                        className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                      >
-                        Provision a Number
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="flex gap-3">
-                        <select
-                          value={searchCountry}
-                          onChange={(e) => setSearchCountry(e.target.value)}
-                          className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
-                        >
-                          <option value="US">United States</option>
-                          <option value="CA">Canada</option>
-                          <option value="GB">United Kingdom</option>
-                          <option value="RW">Rwanda</option>
-                          <option value="KE">Kenya</option>
-                          <option value="UG">Uganda</option>
-                        </select>
-                        <button
-                          onClick={searchNumbers}
-                          disabled={searchingNumbers}
-                          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-                        >
-                          {searchingNumbers ? "Searching..." : "Search Numbers"}
-                        </button>
-                        <button
-                          onClick={() => setShowNumberSearch(false)}
-                          className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-
-                      {availableNumbers.length > 0 && (
-                        <div className="space-y-2">
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            Available numbers:
-                          </p>
-                          {availableNumbers.map((num) => (
-                            <div
-                              key={num.phoneNumber}
-                              className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg"
-                            >
-                              <span className="font-mono text-gray-900 dark:text-white">
-                                {num.phoneNumber}
-                              </span>
-                              <button
-                                onClick={() => provisionNumber(num.phoneNumber)}
-                                disabled={provisioning}
-                                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
-                              >
-                                {provisioning ? "Provisioning..." : "Select"}
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Usage Stats */}
-            {stats && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-                  <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                    Monthly Messages
-                  </div>
-                  <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                    {stats.monthlyMessageCount} / {stats.monthlyMessageLimit}
-                  </div>
-                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-3">
-                    <div
-                      className={`h-2 rounded-full ${
-                        usagePercentage >= 90
-                          ? "bg-red-500"
-                          : usagePercentage >= 70
-                          ? "bg-yellow-500"
-                          : "bg-green-500"
-                      }`}
-                      style={{ width: `${Math.min(usagePercentage, 100)}%` }}
-                    ></div>
-                  </div>
-                </div>
-
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-                  <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                    Total Conversations
-                  </div>
-                  <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                    {stats.totalConversations}
-                  </div>
-                </div>
-
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-                  <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                    Total Messages
-                  </div>
-                  <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                    {stats.totalMessages}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* AI Status */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-                AI Assistant Status
-              </h2>
-              {organization.knowledgeBase?.isModelTrained ? (
-                <div className="flex items-center justify-between p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                  <div>
-                    <div className="flex items-center gap-2 text-green-700 dark:text-green-300 font-medium">
-                      <span>✓</span>
-                      <span>AI is trained and ready</span>
-                    </div>
-                    {organization.knowledgeBase.lastTrainedAt && (
-                      <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                        Last trained:{" "}
-                        {new Date(
-                          organization.knowledgeBase.lastTrainedAt
-                        ).toLocaleString()}
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    onClick={trainAI}
-                    className="px-4 py-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                  >
-                    Retrain AI
-                  </button>
-                </div>
-              ) : (
-                <div className="text-center p-6">
-                  <div className="text-4xl mb-3">🤖</div>
-                  <p className="text-gray-600 dark:text-gray-400 mb-4">
-                    AI assistant not trained yet
-                  </p>
-                  <button
-                    onClick={trainAI}
-                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    Train Your AI
-                  </button>
-                </div>
-              )}
-            </div>
-          </>
-        )}
-
-        {activeTab === "settings" && (
-          <div className="space-y-6">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-                General Settings
-              </h2>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Organization Name
-                  </label>
-                  <input
-                    type="text"
-                    value={organization.name}
-                    onChange={(e) =>
-                      setOrganization({ ...organization, name: e.target.value })
-                    }
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Description
-                  </label>
-                  <textarea
-                    value={organization.description || ""}
-                    onChange={(e) =>
-                      setOrganization({
-                        ...organization,
-                        description: e.target.value,
-                      })
-                    }
-                    rows={3}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Welcome Message
-                  </label>
-                  <textarea
-                    value={organization.welcomeMessage || ""}
-                    onChange={(e) =>
-                      setOrganization({
-                        ...organization,
-                        welcomeMessage: e.target.value,
-                      })
-                    }
-                    placeholder="Sent to new customers on first message"
-                    rows={3}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
-                  />
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={organization.autoReplyEnabled}
-                    onChange={(e) =>
-                      setOrganization({
-                        ...organization,
-                        autoReplyEnabled: e.target.checked,
-                      })
-                    }
-                    className="w-4 h-4"
-                  />
-                  <label className="text-sm text-gray-700 dark:text-gray-300">
-                    Enable auto-reply
-                  </label>
-                </div>
-
-                <button
-                  onClick={() => updateOrganization(organization)}
-                  disabled={saving}
-                  className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-                >
-                  {saving ? "Saving..." : "Save Settings"}
-                </button>
-              </div>
-            </div>
-
-            {/* Business Hours */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-                Business Hours
-              </h2>
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={organization.businessHoursEnabled}
-                    onChange={(e) =>
-                      setOrganization({
-                        ...organization,
-                        businessHoursEnabled: e.target.checked,
-                      })
-                    }
-                    className="w-4 h-4"
-                  />
-                  <label className="text-sm text-gray-700 dark:text-gray-300">
-                    Enable business hours (only respond during set hours)
-                  </label>
-                </div>
-
-                {organization.businessHoursEnabled && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Start Time
-                      </label>
-                      <input
-                        type="time"
-                        value={organization.businessHoursStart || "09:00"}
-                        onChange={(e) =>
-                          setOrganization({
-                            ...organization,
-                            businessHoursStart: e.target.value,
-                          })
-                        }
-                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        End Time
-                      </label>
-                      <input
-                        type="time"
-                        value={organization.businessHoursEnd || "17:00"}
-                        onChange={(e) =>
-                          setOrganization({
-                            ...organization,
-                            businessHoursEnd: e.target.value,
-                          })
-                        }
-                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <button
-                  onClick={() => updateOrganization(organization)}
-                  disabled={saving}
-                  className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-                >
-                  {saving ? "Saving..." : "Save Business Hours"}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === "ai" && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-              AI Training
-            </h2>
-            <p className="text-gray-600 dark:text-gray-400 mb-6">
-              Train your AI assistant with your organization's information,
-              personality, and knowledge base.
-            </p>
-            <button
-              onClick={trainAI}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Go to AI Training
-            </button>
-          </div>
-        )}
-
-        {activeTab === "analytics" && stats && (
-          <div className="space-y-6">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-                Recent Conversations
-              </h2>
-              {stats.recentConversations.length > 0 ? (
-                <div className="space-y-3">
-                  {stats.recentConversations.map((conv) => (
-                    <div
-                      key={conv.id}
-                      className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-                    >
-                      <div className="flex justify-between items-start mb-2">
-                        <div className="font-medium text-gray-900 dark:text-white">
-                          {conv.userId}
-                        </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                          {new Date(conv.lastMessageAt).toLocaleString()}
-                        </div>
-                      </div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
-                        {conv.lastMessage}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                  No conversations yet
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
+    </>
   );
 }

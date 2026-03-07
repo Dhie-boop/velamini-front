@@ -136,6 +136,13 @@ model Organization {
   monthlyMessageCount Int      @default(0) // Current month usage
   lastResetDate       DateTime @default(now()) // When counter was last reset
 
+  // Agent configuration
+  agentName        String?
+  agentPersonality String? @db.Text
+
+  // API access key for external integrations
+  apiKey String? @unique
+
   // Business Info
   industry     String?
   website      String?

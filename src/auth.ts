@@ -39,8 +39,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     adminCredentialsProvider,
   ],
   callbacks: {
-    ...authConfig.callbacks,
-
     // Block banned users from signing in at all
     async signIn({ user, account }) {
       // Always allow admin credentials through (admins can't be banned)
@@ -91,7 +89,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (token.isAdminAuth) {
         session.user.isAdminAuth = true;
       }
-      session.user.status = token.status;
+      session.user.status = token.status as string | undefined;
       return session;
     },
   },

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import type { Session } from "next-auth";
 
 const DEFAULTS: Record<string, string> = {
   allowSignups:       "true",
@@ -18,7 +19,7 @@ const DEFAULTS: Record<string, string> = {
   supportEmail:       "support@velamini.com",
 };
 
-function isAdmin(session: Awaited<ReturnType<typeof auth>>) {
+function isAdmin(session: Session | null): boolean {
   return (session?.user as any)?.isAdminAuth === true;
 }
 
