@@ -42,7 +42,7 @@ const orgCredentialsProvider = Credentials({
     const password =  credentials?.password as string;
     if (!email || !password) return null;
     const user = await prisma.user.findUnique({ where: { email } });
-    if (!user || !user.passwordHash) return null;
+    if (!user || user.accountType !== "organization" || !user.passwordHash) return null;
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) return null;
     return { id: user.id, email: user.email, name: user.name, image: user.image };
