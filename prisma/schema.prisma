@@ -32,12 +32,13 @@ model Chat {
 }
 
 model Message {
-  id        String   @id @default(cuid())
-  chatId    String
-  role      String // "user" or "assistant"
-  content   String   @db.Text
-  createdAt DateTime @default(now())
-  chat      Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  id         String   @id @default(cuid())
+  chatId     String
+  role       String // "user" or "assistant"
+  content    String   @db.Text
+  tokenCount Int?     // AI tokens used for this message exchange
+  createdAt  DateTime @default(now())
+  chat       Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
 
   @@index([chatId])
 }

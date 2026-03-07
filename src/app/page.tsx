@@ -66,6 +66,21 @@ export default function Home() {
     setIsDarkMode(useDark);
   }, []);
 
+  /* ── Embed widget (set NEXT_PUBLIC_EMBED_AGENT_KEY in .env.local) ── */
+  useEffect(() => {
+    const key = process.env.NEXT_PUBLIC_EMBED_AGENT_KEY;
+    if (!key) return;
+    if (document.getElementById("vela-root")) return; // already loaded
+
+    const s = document.createElement("script");
+    s.src = "/embed/agent.js";
+    s.defer = true;
+    s.dataset.agentKey  = key;
+    s.dataset.agentName = process.env.NEXT_PUBLIC_EMBED_AGENT_NAME || "Velamini";
+    s.dataset.theme     = "auto";
+    document.body.appendChild(s);
+  }, []);
+
   function applyTheme(dark: boolean) {
     const root = document.documentElement;
     root.classList.toggle("dark", dark);

@@ -1,14 +1,15 @@
 "use client";
 
-import { ArrowLeft, Zap, Brain, Code2, BarChart3, Settings, Sun, Moon, Building2, ChevronRight, X } from "lucide-react";
+import { Zap, Brain, Code2, BarChart3, Settings, Sun, Moon, Building2, ChevronRight, X, MessageSquare } from "lucide-react";
 import type { OrgTab } from "@/types/organization/org-type";
 
 export const ORG_ASIDE_TABS: { id: OrgTab; label: string; Icon: any }[] = [
-  { id: "overview",  label: "Overview",    Icon: Zap       },
-  { id: "agent",     label: "AI Agent",    Icon: Brain     },
-  { id: "api",       label: "API & Embed", Icon: Code2     },
-  { id: "analytics", label: "Analytics",   Icon: BarChart3 },
-  { id: "settings",  label: "Settings",    Icon: Settings  },
+  { id: "overview",  label: "Overview",    Icon: Zap           },
+  { id: "agent",     label: "Train Agent", Icon: Brain         },
+  { id: "chat",      label: "Test Chat",   Icon: MessageSquare },
+  { id: "api",       label: "API & Embed", Icon: Code2         },
+  { id: "analytics", label: "Analytics",   Icon: BarChart3     },
+  { id: "settings",  label: "Settings",    Icon: Settings      },
 ];
 
 export const ORG_ASIDE_CSS = `
@@ -46,9 +47,7 @@ export const ORG_ASIDE_CSS = `
   .oa-foot{flex-shrink:0;padding:10px 10px 14px;border-top:1px solid var(--c-border);display:flex;flex-direction:column;gap:6px}
   .oa-thm{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;padding:8px 10px;border-radius:9px;border:1px solid var(--c-border);background:transparent;color:var(--c-muted);font-size:.74rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .13s}
   .oa-thm:hover{color:var(--c-accent);border-color:var(--c-accent);background:var(--c-accent-soft)}
-  .oa-thm svg,.oa-back svg{width:13px;height:13px}
-  .oa-back{display:flex;align-items:center;gap:7px;width:100%;padding:8px 10px;border-radius:9px;border:1px solid var(--c-border);background:var(--c-surface-2);color:var(--c-muted);font-size:.74rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .13s}
-  .oa-back:hover{color:var(--c-text);border-color:var(--c-text)}
+  .oa-thm svg{width:13px;height:13px}
 `;
 
 interface OrgAsideProps {
@@ -56,7 +55,6 @@ interface OrgAsideProps {
   isActive:       boolean;
   activeTab:      OrgTab;
   onTabChange:    (tab: OrgTab) => void;
-  onBack:         () => void;
   isDark:         boolean;
   mounted:        boolean;
   onToggleTheme:  () => void;
@@ -69,7 +67,6 @@ export default function OrgAside({
   isActive,
   activeTab,
   onTabChange,
-  onBack,
   isDark,
   mounted,
   onToggleTheme,
@@ -118,9 +115,6 @@ export default function OrgAside({
             {isDark ? "Light mode" : "Dark mode"}
           </button>
         )}
-        <button className="oa-back" onClick={onBack}>
-          <ArrowLeft /> All organisations
-        </button>
       </div>
     </div>
   );

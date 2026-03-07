@@ -47,10 +47,8 @@ export async function GET(
     const recentConversations = await prisma.chat.findMany({
       where: { organizationId: id },
       include: {
-        messages: {
-          orderBy: { createdAt: "desc" },
-          take: 1,
-        },
+        messages: { orderBy: { createdAt: "desc" }, take: 1 },
+        _count: { select: { messages: true } },
       },
       orderBy: { updatedAt: "desc" },
       take: 10,
@@ -73,6 +71,7 @@ export async function GET(
         lastMessage: chat.messages[0]?.content || "No messages",
         lastMessageAt: chat.messages[0]?.createdAt || chat.createdAt,
         updatedAt: chat.updatedAt,
+        messageCount: chat._count.messages,
       })),
     };
 

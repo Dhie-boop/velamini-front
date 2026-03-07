@@ -20,6 +20,7 @@ export default function OrgAgent({ org, onSave, onRefresh, saving, saved, error 
   const [agentName,   setAgentName]   = useState(org.agentName   || "");
   const [personality, setPersonality] = useState(org.agentPersonality || "");
   const [welcome,     setWelcome]     = useState(org.welcomeMessage   || "");
+  const [autoReply,   setAutoReply]   = useState(org.autoReplyEnabled);
   const [qaPairs,     setQaPairs]     = useState<QAPair[]>([
     { id:"1", question:"", answer:"" },
   ]);
@@ -51,7 +52,7 @@ export default function OrgAgent({ org, onSave, onRefresh, saving, saved, error 
 
   const handleSave = async () => {
     // 1. Save personality/name to org
-    await onSave({ agentName, agentPersonality: personality, welcomeMessage: welcome });
+    await onSave({ agentName, agentPersonality: personality, welcomeMessage: welcome, autoReplyEnabled: autoReply });
 
     // 2. Send Q&A pairs to training endpoint
     const validPairs = qaPairs.filter(p => p.question.trim() && p.answer.trim());
@@ -215,8 +216,8 @@ export default function OrgAgent({ org, onSave, onRefresh, saving, saved, error 
                     <div className="oa-toggle-sub">Agent responds to all incoming messages automatically</div>
                   </div>
                   <button
-                    className={`oa-toggle ${org.autoReplyEnabled ? "oa-toggle--on" : "oa-toggle--off"}`}
-                    onClick={() => {}}>
+                    className={`oa-toggle ${autoReply ? "oa-toggle--on" : "oa-toggle--off"}`}
+                    onClick={() => setAutoReply(v => !v)}>
                     <div className="oa-toggle-knob" />
                   </button>
                 </div>

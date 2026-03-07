@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { MessageSquare, TrendingUp, Users, Clock, ChevronRight } from "lucide-react";
+import { useState, useEffect } from "react";
+import { MessageSquare, TrendingUp, Users, Clock } from "lucide-react";
 import { motion } from "framer-motion";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip,
@@ -10,21 +10,12 @@ import {
 import type { Stats } from "@/types/organization/org-type";
 
 interface Props {
+  orgId: string;
   stats: Stats | null;
 }
 
-// Mock chart data — replace with real API data
-const mockDailyMessages = [
-  { day: "Mon", messages: 12 }, { day: "Tue", messages: 28 },
-  { day: "Wed", messages: 19 }, { day: "Thu", messages: 41 },
-  { day: "Fri", messages: 35 }, { day: "Sat", messages: 14 },
-  { day: "Sun", messages: 9  },
-];
-
-const mockConvGrowth = [
-  { week: "W1", conversations: 4  }, { week: "W2", conversations: 11 },
-  { week: "W3", conversations: 18 }, { week: "W4", conversations: 31 },
-];
+type DailyMsg  = { day: string; messages: number };
+type WeeklyConv = { week: string; conversations: number };
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
@@ -41,9 +32,26 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   );
 };
 
-export default function OrgAnalytics({ stats }: Props) {
-  const [convPage, setConvPage] = useState(0);
+export default function OrgAnalytics({ orgId, stats }: Props) {
+  const [convPage,   setConvPage]   = useState(0);
+  const [dailyMsgs,  setDailyMsgs]  = useState<DailyMsg[]>([]);
+  const [weeklyConv, setWeeklyConv] = useState<WeeklyConv[]>([]);
+  const [chartLoading, setChartLoading] = useState(true);
   const PER_PAGE = 6;
+
+  useEffect(() => {
+    setChartLoading(true);
+    fetch(`/api/organizations/${orgId}/analytics`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.ok) {
+          setDailyMsgs(d.dailyMessages  ?? []);
+          setWeeklyConv(d.weeklyConversations ?? []);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setChartLoading(false));
+  }, [orgId]);
 
   const convs    = stats?.recentConversations ?? [];
   const paged    = convs.slice(convPage * PER_PAGE, (convPage + 1) * PER_PAGE);
@@ -152,7 +160,7 @@ export default function OrgAnalytics({ stats }: Props) {
             <div className="od-card-title">Daily Messages</div>
             <div className="od-card-sub">Messages handled this week.</div>
             <ResponsiveContainer width="100%" height={160}>
-              <BarChart data={mockDailyMessages} barSize={18}>
+              <BarChart data={dailyMsgs} barSize={18}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--c-border)" />
                 <XAxis dataKey="day" tick={{ fontSize:10, fill:"var(--c-muted)" }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize:10, fill:"var(--c-muted)" }} axisLine={false} tickLine={false} />
@@ -167,7 +175,7 @@ export default function OrgAnalytics({ stats }: Props) {
             <div className="od-card-title">Conversation Growth</div>
             <div className="od-card-sub">New conversations per week.</div>
             <ResponsiveContainer width="100%" height={160}>
-              <AreaChart data={mockConvGrowth}>
+              <AreaChart data={weeklyConv}>
                 <defs>
                   <linearGradient id="orgGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="var(--c-org)" stopOpacity={0.25}/>
