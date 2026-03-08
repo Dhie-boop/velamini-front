@@ -260,6 +260,7 @@ model User {
   generatedResumes   GeneratedResume[]
   userBillingRecords UserBillingRecord[]
   notifications      Notification[]
+  moderationReports  ModerationReport[]
 }
 
 model UserBillingRecord {
@@ -295,6 +296,26 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+model ModerationReport {
+  id           String    @id @default(cuid())
+  type         String    // "message" | "profile" | "content" | "feedback"
+  severity     String    @default("medium") // "high" | "medium" | "low"
+  status       String    @default("pending") // "pending" | "resolved" | "dismissed"
+  reason       String
+  excerpt      String?   @db.Text
+  reporter     String?   // Reporter name/email or "System"
+  target       String?   // Description of the reported entity
+  targetUserId String?
+  targetUser   User?     @relation(fields: [targetUserId], references: [id], onDelete: SetNull)
+  resolvedBy   String?
+  resolvedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([status])
+  @@index([targetUserId])
 }
 
 model PlatformSetting {

@@ -252,9 +252,9 @@ function OrgRow({ org, onUpdated, onDeleted }: {
                     <select className="aorgs-select" value={editPlan} onChange={e => setEditPlan(e.target.value as PlanType)}>
                       <option value="free">Free (500 msgs)</option>
                       <option value="trial">Trial (100 msgs)</option>
-                      <option value="starter">Starter (2,000 msgs)</option>
-                      <option value="pro">Pro (8,000 msgs)</option>
-                      <option value="scale">Scale (25,000 msgs)</option>
+                      <option value="starter">Starter (2,000 msgs · 4,000 RWF/mo)</option>
+                      <option value="pro">Pro (8,000 msgs · 12,000 RWF/mo)</option>
+                      <option value="scale">Scale (25,000 msgs · 28,000 RWF/mo)</option>
                     </select>
                   </div>
                   <div className="aorgs-form-group">

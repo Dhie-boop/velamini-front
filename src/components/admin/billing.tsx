@@ -54,7 +54,7 @@ const USER_PLANS = [
   { id:"plus", msgs:"1,500 msg/mo",price:"3,000 RWF",  color:"#818CF8", Icon:Crown },
 ];
 
-const PAGE_SIZE = 15;
+const PAGE_SIZE = 10;
 
 /* ── Animated number ───────────────────────────────────────────── */
 function AnimNum({ to, prefix="", suffix="" }: { to:number; prefix?:string; suffix?:string }) {
@@ -679,7 +679,7 @@ export default function AdminBilling() {
           </div>
 
           {/* Pagination */}
-          {pages > 1 && (
+          {records.length > 0 && (
             <div className="ab-pager">
               <span className="ab-pager-info">
                 Showing {Math.min((page-1)*PAGE_SIZE+1, total)}–{Math.min(page*PAGE_SIZE, total)} of {total.toLocaleString()}
