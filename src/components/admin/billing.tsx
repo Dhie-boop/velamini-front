@@ -1,62 +1,80 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Search, CreditCard, TrendingUp, AlertTriangle, CheckCircle,
   Clock, RefreshCw, ChevronLeft, ChevronRight, Building2, User,
-  MoreHorizontal, Edit3, X, Check, Crown, Zap, Filter,
-  DollarSign, Receipt, XCircle,
+  MoreHorizontal, X, Check, Crown, Zap, DollarSign, Receipt,
+  XCircle, ArrowUpRight, ArrowDownRight,
 } from "lucide-react";
 
-// ── Types ────────────────────────────────────────────────────────────────
-
-type RecordKind = "org" | "user";
+/* ── Types ─────────────────────────────────────────────────────── */
+type RecordKind   = "org" | "user";
 type RecordStatus = "success" | "pending" | "failed";
 
 interface BillingRow {
-  id:          string;
-  kind:        RecordKind;
-  entityId:    string;
-  entityName:  string;
-  entityEmail: string;
-  plan:        string;
-  amountRWF:   number;
-  txRef:       string;
-  flwRef:      string | null;
-  status:      RecordStatus;
-  createdAt:   string;
+  id: string; kind: RecordKind; entityId: string;
+  entityName: string; entityEmail: string;
+  plan: string; amountRWF: number;
+  txRef: string; flwRef: string | null;
+  status: RecordStatus; createdAt: string;
 }
-
 interface Stats {
-  totalRevenue:    number;
-  orgRevenue:      number;
-  userRevenue:     number;
-  pendingCount:    number;
-  failedCount:     number;
-  activePaidOrgs:  number;
-  activePaidUsers: number;
+  totalRevenue: number; orgRevenue: number; userRevenue: number;
+  pendingCount: number; failedCount: number;
+  activePaidOrgs: number; activePaidUsers: number;
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────
+/* ── Helpers ───────────────────────────────────────────────────── */
+const fmt     = (n: number) => n === 0 ? "Free" : n.toLocaleString("en-RW") + " RWF";
+const fmtDate = (s: string) => new Date(s).toLocaleDateString("en-RW", { year:"numeric", month:"short", day:"numeric" });
 
-function fmt(n: number) { return n.toLocaleString() + " RWF"; }
-function fmtDate(s: string) {
-  return new Date(s).toLocaleDateString("en-RW", { year: "numeric", month: "short", day: "numeric" });
-}
-
-const STATUS_META: Record<RecordStatus, { label: string; color: string; Icon: any }> = {
-  success: { label: "Paid",    color: "var(--c-success)", Icon: CheckCircle  },
-  pending: { label: "Pending", color: "var(--c-warn)",    Icon: Clock        },
-  failed:  { label: "Failed",  color: "var(--c-danger)",  Icon: XCircle      },
+const PLAN_META: Record<string, { color: string; bg: string }> = {
+  free:    { color:"#34D399", bg:"rgba(52,211,153,.13)" },
+  plus:    { color:"#818CF8", bg:"rgba(129,140,248,.13)" },
+  starter: { color:"#38AECC", bg:"rgba(56,174,204,.13)" },
+  pro:     { color:"#818CF8", bg:"rgba(129,140,248,.13)" },
+  scale:   { color:"#FCD34D", bg:"rgba(252,211,77,.13)"  },
 };
 
-const ORG_PLANS  = ["free", "starter", "pro", "scale"];
-const USER_PLANS = ["free", "plus"];
+const STATUS_META: Record<RecordStatus, { label:string; icon:any; cls:string }> = {
+  success: { label:"Paid",    icon:CheckCircle,  cls:"s-ok"  },
+  pending: { label:"Pending", icon:Clock,        cls:"s-pend"},
+  failed:  { label:"Failed",  icon:XCircle,      cls:"s-fail"},
+};
+
+const ORG_PLANS  = [
+  { id:"free",    msgs:"500 msg/mo",    price:"0 RWF",      color:"#34D399", Icon:Zap   },
+  { id:"starter", msgs:"2,000 msg/mo",  price:"5,000 RWF",  color:"#38AECC", Icon:TrendingUp },
+  { id:"pro",     msgs:"8,000 msg/mo",  price:"15,000 RWF", color:"#818CF8", Icon:Crown },
+  { id:"scale",   msgs:"25,000 msg/mo", price:"35,000 RWF", color:"#FCD34D", Icon:Crown },
+];
+const USER_PLANS = [
+  { id:"free", msgs:"200 msg/mo",  price:"0 RWF",      color:"#34D399", Icon:Zap   },
+  { id:"plus", msgs:"1,500 msg/mo",price:"3,000 RWF",  color:"#818CF8", Icon:Crown },
+];
 
 const PAGE_SIZE = 15;
 
-// ── Component ─────────────────────────────────────────────────────────────
+/* ── Animated number ───────────────────────────────────────────── */
+function AnimNum({ to, prefix="", suffix="" }: { to:number; prefix?:string; suffix?:string }) {
+  const [v, setV] = useState(0);
+  const ref = useRef(false);
+  useEffect(() => {
+    if (ref.current) return; ref.current = true;
+    let cur = 0;
+    const step = Math.ceil(to / 55);
+    const id = setInterval(() => {
+      cur += step;
+      if (cur >= to) { setV(to); clearInterval(id); }
+      else setV(cur);
+    }, 14);
+    return () => clearInterval(id);
+  }, [to]);
+  return <>{prefix}{v.toLocaleString("en-RW")}{suffix}</>;
+}
 
+/* ── Component ─────────────────────────────────────────────────── */
 export default function AdminBilling() {
   const [stats,   setStats]   = useState<Stats | null>(null);
   const [records, setRecords] = useState<BillingRow[]>([]);
@@ -64,36 +82,23 @@ export default function AdminBilling() {
   const [pages,   setPages]   = useState(1);
   const [loading, setLoading] = useState(true);
 
-  const [search,  setSearch]  = useState("");
-  const [typeFilter,  setType]  = useState<"all" | "org" | "user">("all");
-  const [statusFilter, setStatusFilter] = useState<"all" | RecordStatus>("all");
-  const [page,    setPage]    = useState(1);
+  const [search,       setSearch]       = useState("");
+  const [typeFilter,   setTypeFilter]   = useState<"all"|"org"|"user">("all");
+  const [statusFilter, setStatusFilter] = useState<"all"|RecordStatus>("all");
+  const [page, setPage] = useState(1);
 
-  // Context menu state
   const [menu,      setMenu]      = useState<string | null>(null);
-  // Plan override modal
   const [planModal, setPlanModal] = useState<{ row: BillingRow } | null>(null);
   const [newPlan,   setNewPlan]   = useState("");
   const [saving,    setSaving]    = useState(false);
 
-  // ── Fetch ────────────────────────────────────────────────────────────
-
-  const fetchData = useCallback((s: string, t: string, st: string, p: number) => {
+  /* ── Fetch ───────────────────────────────────────────────────── */
+  const fetchData = useCallback((s:string, t:string, st:string, p:number) => {
     setLoading(true);
-    const params = new URLSearchParams({
-      search: s, type: t, status: st,
-      page: String(p), pageSize: String(PAGE_SIZE),
-    });
-    fetch(`/api/admin/billing?${params}`)
+    const q = new URLSearchParams({ search:s, type:t, status:st, page:String(p), pageSize:String(PAGE_SIZE) });
+    fetch(`/api/admin/billing?${q}`)
       .then(r => r.json())
-      .then(d => {
-        if (d.ok) {
-          setStats(d.stats);
-          setRecords(d.records);
-          setTotal(d.total);
-          setPages(d.pages);
-        }
-      })
+      .then(d => { if (d.ok) { setStats(d.stats); setRecords(d.records); setTotal(d.total); setPages(d.pages); } })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
@@ -103,371 +108,450 @@ export default function AdminBilling() {
     return () => clearTimeout(id);
   }, [search, typeFilter, statusFilter, page, fetchData]);
 
-  // Close menu on outside click
   useEffect(() => {
     const fn = () => setMenu(null);
     document.addEventListener("mousedown", fn);
     return () => document.removeEventListener("mousedown", fn);
   }, []);
 
-  // ── Actions ─────────────────────────────────────────────────────────
-
+  /* ── Actions ─────────────────────────────────────────────────── */
   const setRecordStatus = (row: BillingRow, status: RecordStatus) => {
     setMenu(null);
     fetch("/api/admin/billing", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "set-record-status", kind: row.kind, id: row.id, status }),
-    })
-      .then(r => r.json())
-      .then(d => { if (d.ok) setRecords(p => p.map(r => r.id === row.id ? { ...r, status } : r)); })
-      .catch(() => {});
+      method:"PATCH", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({ action:"set-record-status", kind:row.kind, id:row.id, status }),
+    }).then(r => r.json()).then(d => {
+      if (d.ok) setRecords(p => p.map(r => r.id === row.id ? { ...r, status } : r));
+    }).catch(() => {});
   };
 
-  const openPlanModal = (row: BillingRow) => {
-    setPlanModal({ row });
-    setNewPlan("");
-    setMenu(null);
-  };
+  const openPlanModal = (row: BillingRow) => { setPlanModal({ row }); setNewPlan(""); setMenu(null); };
 
   const savePlan = () => {
     if (!planModal || !newPlan) return;
     setSaving(true);
     const { row } = planModal;
-    const action = row.kind === "org" ? "set-org-plan" : "set-user-plan";
-    const idKey  = row.kind === "org" ? "orgId" : "userId";
     fetch("/api/admin/billing", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action, [idKey]: row.entityId, plan: newPlan }),
-    })
-      .then(r => r.json())
-      .then(d => {
-        if (d.ok) {
-          setPlanModal(null);
-          fetchData(search, typeFilter, statusFilter, page);
-        }
-      })
-      .catch(() => {})
-      .finally(() => setSaving(false));
+      method:"PATCH", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        action: row.kind === "org" ? "set-org-plan" : "set-user-plan",
+        [row.kind === "org" ? "orgId" : "userId"]: row.entityId,
+        plan: newPlan,
+      }),
+    }).then(r => r.json()).then(d => {
+      if (d.ok) { setPlanModal(null); fetchData(search, typeFilter, statusFilter, page); }
+    }).catch(() => {}).finally(() => setSaving(false));
   };
 
-  // ── Render ────────────────────────────────────────────────────────────
-
+  /* ── Render ──────────────────────────────────────────────────── */
   return (
     <>
       <style>{`
-        .ab { display:flex; flex-direction:column; gap:20px; }
-
-        /* ── Stats grid ── */
-        .ab-stats{ display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:12px; }
-        .ab-stat{
-          background:var(--c-surface); border:1px solid var(--c-border);
-          border-radius:14px; padding:16px;
-          display:flex; flex-direction:column; gap:8px;
-          transition:background .3s,border-color .3s;
-        }
-        .ab-stat-icon{
-          width:36px; height:36px; border-radius:10px; flex-shrink:0;
-          display:flex; align-items:center; justify-content:center;
-        }
-        .ab-stat-icon svg{ width:16px; height:16px; }
-        .ab-stat-val{ font-size:1.25rem; font-weight:800; color:var(--c-text); line-height:1; }
-        .ab-stat-lbl{ font-size:.7rem; font-weight:600; color:var(--c-muted); text-transform:uppercase; letter-spacing:.06em; }
-
-        /* ── Toolbar ── */
-        .ab-toolbar{
-          display:flex; flex-wrap:wrap; gap:8px; align-items:center;
-        }
-        .ab-search{
-          flex:1; min-width:160px; display:flex; align-items:center; gap:8px;
-          padding:0 12px; height:36px; border-radius:9px;
-          border:1.5px solid var(--c-border); background:var(--c-surface);
-          color:var(--c-text); font-size:.82rem; font-family:inherit;
-        }
-        .ab-search svg{ color:var(--c-muted); width:13px; height:13px; flex-shrink:0; }
-        .ab-search input{
-          flex:1; border:none; outline:none; background:transparent;
-          color:var(--c-text); font-size:.82rem; font-family:inherit;
-        }
-        .ab-seg{
-          display:flex; border-radius:9px; overflow:hidden;
-          border:1.5px solid var(--c-border); flex-shrink:0;
-        }
-        .ab-seg-btn{
-          padding:0 13px; height:34px; font-size:.74rem; font-weight:600;
-          font-family:inherit; cursor:pointer; border:none; background:var(--c-surface);
-          color:var(--c-muted); transition:all .13s; white-space:nowrap;
-        }
-        .ab-seg-btn + .ab-seg-btn{ border-left:1px solid var(--c-border); }
-        .ab-seg-btn--on{ background:var(--c-accent); color:#fff; }
-        .ab-refresh{
-          display:flex; align-items:center; justify-content:center;
-          width:36px; height:36px; border-radius:9px; flex-shrink:0;
-          border:1.5px solid var(--c-border); background:var(--c-surface);
-          color:var(--c-muted); cursor:pointer; transition:all .13s;
-        }
-        .ab-refresh:hover{ border-color:var(--c-accent); color:var(--c-accent); background:var(--c-accent-soft); }
-        .ab-refresh svg{ width:14px; height:14px; }
-
-        /* ── Table ── */
-        .ab-table-card{
-          background:var(--c-surface); border:1px solid var(--c-border);
-          border-radius:14px; overflow:hidden;
-        }
-        .ab-table-head{
-          display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;
-          padding:14px 16px 12px;
-          border-bottom:1px solid var(--c-border);
-        }
-        .ab-table-title{ font-size:.78rem; font-weight:700; color:var(--c-text); }
-        .ab-table-count{ font-size:.72rem; color:var(--c-muted); }
-        .ab-table-wrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
-        table.ab-table{ width:100%; border-collapse:collapse; font-size:.8rem; min-width:680px; }
-        table.ab-table th{
-          text-align:left; font-size:.64rem; font-weight:700; letter-spacing:.08em;
-          text-transform:uppercase; color:var(--c-muted); padding:9px 12px;
-          border-bottom:1px solid var(--c-border); background:var(--c-surface-2);
-          white-space:nowrap;
-        }
-        table.ab-table td{ padding:11px 12px; border-bottom:1px solid var(--c-border); color:var(--c-muted); vertical-align:middle; }
-        table.ab-table tr:last-child td{ border-bottom:none; }
-        table.ab-table tbody tr:hover td{ background:var(--c-surface-2); }
-
-        /* Kind badge */
-        .ab-kind{
-          display:inline-flex; align-items:center; gap:4px;
-          padding:3px 8px; border-radius:6px; font-size:.68rem; font-weight:700;
-        }
-        .ab-kind--org{  background:color-mix(in srgb,#38AECC 14%,transparent); color:#38AECC; }
-        .ab-kind--user{ background:color-mix(in srgb,#818CF8 14%,transparent); color:#818CF8; }
-        .ab-kind svg{ width:10px; height:10px; }
-
-        /* Status badge */
-        .ab-status{
-          display:inline-flex; align-items:center; gap:5px;
-          padding:4px 9px; border-radius:7px; font-size:.7rem; font-weight:700;
-        }
-        .ab-status svg{ width:11px; height:11px; }
-        .ab-status--success{ background:var(--c-success-soft); color:var(--c-success); }
-        .ab-status--pending{ background:var(--c-warn-soft);    color:var(--c-warn);    }
-        .ab-status--failed{  background:var(--c-danger-soft);  color:var(--c-danger);  }
-
-        /* Plan pill */
-        .ab-plan{
-          display:inline-flex; align-items:center; gap:4px;
-          padding:3px 9px; border-radius:20px; font-size:.68rem; font-weight:700;
-          background:var(--c-surface-2); border:1px solid var(--c-border); color:var(--c-muted);
-          text-transform:capitalize;
+        /* ─── Global resets (scoped) ─── */
+        .ab-root *, .ab-root *::before, .ab-root *::after { box-sizing: border-box; }
+        .ab-root {
+          display: flex; flex-direction: column; gap: 22px;
+          font-family: 'DM Sans', system-ui, sans-serif;
         }
 
-        /* Entity cell */
-        .ab-entity{ display:flex; flex-direction:column; gap:1px; }
-        .ab-entity-name{ font-size:.82rem; font-weight:600; color:var(--c-text); }
-        .ab-entity-email{ font-size:.7rem; color:var(--c-muted); }
+        /* ─── Spin keyframe ─── */
+        @keyframes ab-spin { to { transform: rotate(360deg); } }
+        @keyframes ab-fade-in { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+        @keyframes ab-scale-in { from { opacity:0; transform:scale(.95) translateY(8px); } to { opacity:1; transform:none; } }
+        @keyframes ab-menu-in { from { opacity:0; transform:translateY(-4px) scale(.97); } to { opacity:1; transform:none; } }
+        @keyframes ab-sk { from { opacity:.4; } to { opacity:.85; } }
+        .ab-spin { animation: ab-spin .7s linear infinite; }
 
-        /* Amount */
-        .ab-amount{ font-weight:700; color:var(--c-text); white-space:nowrap; }
+        /* ─── Stats row ─── */
+        .ab-stats {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+          gap: 12px;
+        }
+        .ab-stat {
+          background: var(--c-surface);
+          border: 1px solid var(--c-border);
+          border-radius: 16px;
+          padding: 16px 16px 14px;
+          display: flex; flex-direction: column; gap: 10px;
+          position: relative; overflow: hidden;
+          transition: border-color .2s, box-shadow .2s, transform .2s;
+          animation: ab-fade-in .35s ease both;
+        }
+        .ab-stat:hover {
+          border-color: color-mix(in srgb, var(--ac, #38AECC) 45%, var(--c-border));
+          box-shadow: 0 4px 20px rgba(0,0,0,.1);
+          transform: translateY(-2px);
+        }
+        /* subtle top accent line per card */
+        .ab-stat::before {
+          content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+          background: var(--ac, #38AECC); opacity: .55;
+          border-radius: 16px 16px 0 0;
+        }
+        .ab-stat-top { display: flex; align-items: center; justify-content: space-between; }
+        .ab-stat-icon {
+          width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+          display: flex; align-items: center; justify-content: center;
+        }
+        .ab-stat-trend {
+          display: flex; align-items: center; gap: 2px;
+          font-size: .65rem; font-weight: 700;
+          padding: 2px 6px; border-radius: 5px;
+        }
+        .ab-stat-trend svg { width: 10px; height: 10px; }
+        .ab-stat-val {
+          font-size: 1.3rem; font-weight: 800;
+          color: var(--c-text); line-height: 1; letter-spacing: -.02em;
+        }
+        .ab-stat-lbl {
+          font-size: .67rem; font-weight: 600; letter-spacing: .07em;
+          text-transform: uppercase; color: var(--c-muted);
+          line-height: 1.3;
+        }
 
-        /* Ref */
-        .ab-ref{ font-family:monospace; font-size:.7rem; color:var(--c-muted); max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        /* ─── Toolbar ─── */
+        .ab-toolbar {
+          display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+        }
+        .ab-search-box {
+          flex: 1; min-width: 180px; display: flex; align-items: center; gap: 8px;
+          padding: 0 12px; height: 38px; border-radius: 10px;
+          border: 1.5px solid var(--c-border); background: var(--c-surface);
+          transition: border-color .15s, box-shadow .15s;
+        }
+        .ab-search-box:focus-within {
+          border-color: var(--c-accent); box-shadow: 0 0 0 3px color-mix(in srgb,var(--c-accent) 14%,transparent);
+        }
+        .ab-search-box svg { color: var(--c-muted); flex-shrink: 0; }
+        .ab-search-box input {
+          flex: 1; border: none; outline: none; background: transparent;
+          color: var(--c-text); font-size: .82rem; font-family: inherit;
+        }
+        .ab-search-box input::placeholder { color: var(--c-muted); }
 
-        /* Context menu */
-        .ab-menu-wrap{ position:relative; }
-        .ab-menu-btn{
-          display:flex; align-items:center; justify-content:center; width:28px; height:28px;
-          border-radius:6px; border:1px solid transparent; background:none;
-          color:var(--c-muted); cursor:pointer; transition:all .12s;
+        .ab-seg {
+          display: flex; border-radius: 10px; overflow: hidden;
+          border: 1.5px solid var(--c-border); flex-shrink: 0;
+          background: var(--c-surface);
         }
-        .ab-menu-btn:hover{ background:var(--c-surface-2); border-color:var(--c-border); color:var(--c-text); }
-        .ab-menu-btn svg{ width:14px; height:14px; }
-        .ab-menu{
-          position:absolute; right:0; top:calc(100% + 4px); z-index:100;
-          background:var(--c-surface); border:1px solid var(--c-border);
-          border-radius:10px; box-shadow:var(--shadow-lg);
-          padding:5px; min-width:180px; animation:abMenuIn .12s ease;
+        .ab-seg-btn {
+          padding: 0 14px; height: 36px; font-size: .75rem; font-weight: 700;
+          font-family: inherit; cursor: pointer; border: none;
+          background: transparent; color: var(--c-muted);
+          transition: all .15s; white-space: nowrap;
         }
-        @keyframes abMenuIn{from{opacity:0;transform:translateY(-5px) scale(.97)}to{opacity:1;transform:none}}
-        .ab-menu-item{
-          display:flex; align-items:center; gap:8px; padding:8px 10px;
-          border-radius:7px; font-size:.78rem; font-weight:600; cursor:pointer;
-          transition:background .11s; color:var(--c-muted); background:none; border:none;
-          width:100%; text-align:left; font-family:inherit;
-        }
-        .ab-menu-item:hover{ background:var(--c-surface-2); color:var(--c-text); }
-        .ab-menu-item--danger:hover{ background:var(--c-danger-soft); color:var(--c-danger); }
-        .ab-menu-item--success:hover{ background:var(--c-success-soft); color:var(--c-success); }
-        .ab-menu-item svg{ width:13px; height:13px; flex-shrink:0; }
-        .ab-menu-divider{ height:1px; background:var(--c-border); margin:3px 4px; }
-        .ab-menu-section{ padding:4px 10px 2px; font-size:.62rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--c-muted); }
+        .ab-seg-btn + .ab-seg-btn { border-left: 1px solid var(--c-border); }
+        .ab-seg-btn.on { background: var(--c-accent); color: #fff; }
 
-        /* Pagination */
-        .ab-pager{ display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; padding:12px 16px; border-top:1px solid var(--c-border); }
-        .ab-pager-info{ font-size:.74rem; color:var(--c-muted); }
-        .ab-pager-right{ display:flex; align-items:center; gap:5px; }
-        .ab-pbtn{
-          display:flex; align-items:center; justify-content:center; width:32px; height:32px;
-          border-radius:7px; border:1px solid var(--c-border); background:var(--c-surface);
-          color:var(--c-muted); cursor:pointer; transition:all .13s;
+        .ab-icon-btn {
+          display: flex; align-items: center; justify-content: center;
+          width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
+          border: 1.5px solid var(--c-border); background: var(--c-surface);
+          color: var(--c-muted); cursor: pointer; transition: all .15s;
         }
-        .ab-pbtn:hover:not(:disabled){ border-color:var(--c-accent); color:var(--c-accent); background:var(--c-accent-soft); }
-        .ab-pbtn:disabled{ opacity:.4; cursor:not-allowed; }
-        .ab-pbtn svg{ width:13px; height:13px; }
-        .ab-page-num{ font-size:.8rem; color:var(--c-muted); padding:0 4px; }
+        .ab-icon-btn:hover {
+          border-color: var(--c-accent); color: var(--c-accent);
+          background: color-mix(in srgb,var(--c-accent) 8%,transparent);
+        }
 
-        /* Empty / loading */
-        .ab-empty{ text-align:center; padding:40px; color:var(--c-muted); font-size:.82rem; }
-        .ab-empty svg{ width:36px; height:36px; opacity:.3; margin-bottom:10px; display:block; margin-inline:auto; }
-        .ab-skeleton{ background:var(--c-surface-2); border-radius:6px; animation:abSk 1.2s ease infinite alternate; }
-        @keyframes abSk{from{opacity:.5}to{opacity:1}}
+        /* ─── Table card ─── */
+        .ab-card {
+          background: var(--c-surface);
+          border: 1px solid var(--c-border);
+          border-radius: 16px; overflow: hidden;
+          animation: ab-fade-in .4s ease both .05s;
+        }
+        .ab-card-head {
+          display: flex; align-items: center; justify-content: space-between;
+          flex-wrap: wrap; gap: 8px; padding: 14px 18px 13px;
+          border-bottom: 1px solid var(--c-border);
+          background: var(--c-surface-2);
+        }
+        .ab-card-title { font-size: .85rem; font-weight: 800; color: var(--c-text); }
+        .ab-card-count {
+          font-size: .72rem; font-weight: 600;
+          color: var(--c-muted);
+          background: var(--c-surface);
+          border: 1px solid var(--c-border);
+          padding: 2px 9px; border-radius: 20px;
+        }
 
-        /* ── Plan Modal ── */
-        .ab-modal-ov{
-          position:fixed; inset:0; z-index:300;
-          background:rgba(8,20,32,.6); backdrop-filter:blur(4px);
-          display:flex; align-items:center; justify-content:center; padding:20px;
-          animation:abFade .16s ease;
+        .ab-tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        table.ab-tbl {
+          width: 100%; border-collapse: collapse; font-size: .8rem; min-width: 720px;
         }
-        @keyframes abFade{from{opacity:0}to{opacity:1}}
-        .ab-modal{
-          background:var(--c-surface); border:1px solid var(--c-border);
-          border-radius:16px; padding:24px; width:100%; max-width:380px;
-          box-shadow:var(--shadow-lg); animation:abSlide .18s ease;
+        table.ab-tbl th {
+          text-align: left; font-size: .62rem; font-weight: 800; letter-spacing: .09em;
+          text-transform: uppercase; color: var(--c-muted); padding: 10px 16px;
+          border-bottom: 1px solid var(--c-border); white-space: nowrap;
+          background: color-mix(in srgb,var(--c-surface-2) 80%,transparent);
         }
-        @keyframes abSlide{from{opacity:0;transform:translateY(10px) scale(.97)}to{opacity:1;transform:none}}
-        .ab-modal-head{ display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:18px; }
-        .ab-modal-title{ font-size:.95rem; font-weight:700; color:var(--c-text); }
-        .ab-modal-sub{ font-size:.74rem; color:var(--c-muted); margin-top:3px; }
-        .ab-modal-close{
-          display:flex; align-items:center; justify-content:center;
-          width:28px; height:28px; border-radius:7px; border:1px solid var(--c-border);
-          background:var(--c-surface-2); color:var(--c-muted); cursor:pointer; transition:all .13s;
+        table.ab-tbl td {
+          padding: 12px 16px; border-bottom: 1px solid var(--c-border);
+          color: var(--c-muted); vertical-align: middle; transition: background .12s;
         }
-        .ab-modal-close:hover{ border-color:var(--c-danger); color:var(--c-danger); background:var(--c-danger-soft); }
-        .ab-modal-close svg{ width:13px; height:13px; }
-        .ab-plan-opts{ display:flex; flex-direction:column; gap:8px; margin-bottom:18px; }
-        .ab-plan-opt{
-          display:flex; align-items:center; gap:10px; padding:11px 14px;
-          border-radius:10px; border:1.5px solid var(--c-border); cursor:pointer;
-          transition:all .12s; background:var(--c-surface-2);
+        table.ab-tbl tr:last-child td { border-bottom: none; }
+        table.ab-tbl tbody tr { transition: background .12s; }
+        table.ab-tbl tbody tr:hover td { background: color-mix(in srgb,var(--c-accent) 4%,var(--c-surface)); }
+
+        /* ─── Cell components ─── */
+        .ab-kind-badge {
+          display: inline-flex; align-items: center; gap: 5px;
+          padding: 4px 9px; border-radius: 7px; font-size: .68rem; font-weight: 800;
+          letter-spacing: .02em;
         }
-        .ab-plan-opt:hover{ border-color:var(--c-accent); background:var(--c-accent-soft); }
-        .ab-plan-opt--on{ border-color:var(--c-accent); background:var(--c-accent-soft); }
-        .ab-plan-opt-dot{
-          width:30px; height:30px; border-radius:8px; flex-shrink:0;
-          display:flex; align-items:center; justify-content:center;
+        .ab-kind-badge svg { width: 10px; height: 10px; }
+        .ab-kind-badge.org  { background: rgba(56,174,204,.12); color:#38AECC; }
+        .ab-kind-badge.user { background: rgba(129,140,248,.12); color:#818CF8; }
+
+        .ab-entity-cell { display: flex; flex-direction: column; gap: 1px; }
+        .ab-entity-name { font-size: .83rem; font-weight: 700; color: var(--c-text); }
+        .ab-entity-email { font-size: .69rem; color: var(--c-muted); }
+
+        .ab-plan-badge {
+          display: inline-flex; align-items: center; gap: 5px;
+          padding: 4px 10px; border-radius: 20px; font-size: .69rem; font-weight: 800;
+          letter-spacing: .03em; text-transform: capitalize; border: 1px solid transparent;
         }
-        .ab-plan-opt-dot svg{ width:14px; height:14px; }
-        .ab-plan-opt-name{ font-size:.84rem; font-weight:700; color:var(--c-text); text-transform:capitalize; }
-        .ab-plan-opt-desc{ font-size:.7rem; color:var(--c-muted); }
-        .ab-modal-save{
-          width:100%; display:flex; align-items:center; justify-content:center; gap:7px;
-          padding:11px; border-radius:10px; background:var(--c-accent); color:#fff;
-          font-size:.84rem; font-weight:700; font-family:inherit; border:none;
-          cursor:pointer; transition:background .13s;
+        .ab-plan-dot { width: 6px; height: 6px; border-radius: 50%; }
+
+        .ab-amount { font-size: .84rem; font-weight: 800; color: var(--c-text); white-space: nowrap; }
+
+        .ab-status {
+          display: inline-flex; align-items: center; gap: 5px;
+          padding: 4px 10px; border-radius: 7px; font-size: .7rem; font-weight: 800;
         }
-        .ab-modal-save:hover:not(:disabled){ background:var(--c-accent-dim); }
-        .ab-modal-save:disabled{ opacity:.6; cursor:not-allowed; }
-        .ab-modal-save svg{ width:14px; height:14px; }
+        .ab-status svg { width: 11px; height: 11px; }
+        .s-ok   { background: var(--c-success-soft); color: var(--c-success); }
+        .s-pend { background: var(--c-warn-soft);    color: var(--c-warn);    }
+        .s-fail { background: var(--c-danger-soft);  color: var(--c-danger);  }
+
+        .ab-ref {
+          font-family: 'Geist Mono', ui-monospace, monospace;
+          font-size: .69rem; color: var(--c-muted);
+          max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+          display: block;
+        }
+
+        /* ─── Context menu ─── */
+        .ab-mw { position: relative; }
+        .ab-mbtn {
+          display: flex; align-items: center; justify-content: center;
+          width: 30px; height: 30px; border-radius: 8px;
+          border: 1px solid transparent; background: none;
+          color: var(--c-muted); cursor: pointer; transition: all .12s;
+        }
+        .ab-mbtn:hover {
+          background: var(--c-surface-2); border-color: var(--c-border); color: var(--c-text);
+        }
+        .ab-menu {
+          position: absolute; right: 0; top: calc(100% + 5px); z-index: 200;
+          background: var(--c-surface); border: 1px solid var(--c-border);
+          border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,.2);
+          padding: 5px; min-width: 190px;
+          animation: ab-menu-in .13s ease;
+        }
+        .ab-mi {
+          display: flex; align-items: center; gap: 9px; padding: 8px 11px;
+          border-radius: 8px; font-size: .79rem; font-weight: 600; cursor: pointer;
+          color: var(--c-muted); background: none; border: none;
+          width: 100%; text-align: left; font-family: inherit; transition: all .1s;
+        }
+        .ab-mi:hover { background: var(--c-surface-2); color: var(--c-text); }
+        .ab-mi.ok:hover    { background: var(--c-success-soft); color: var(--c-success); }
+        .ab-mi.danger:hover{ background: var(--c-danger-soft);  color: var(--c-danger);  }
+        .ab-mi svg { width: 13px; height: 13px; flex-shrink: 0; }
+        .ab-mdiv { height: 1px; background: var(--c-border); margin: 4px 6px; }
+        .ab-msec {
+          padding: 5px 11px 3px; font-size: .6rem; font-weight: 800;
+          letter-spacing: .1em; text-transform: uppercase; color: var(--c-muted);
+        }
+
+        /* ─── Pagination ─── */
+        .ab-pager {
+          display: flex; align-items: center; justify-content: space-between;
+          flex-wrap: wrap; gap: 8px; padding: 12px 18px;
+          border-top: 1px solid var(--c-border);
+        }
+        .ab-pager-info { font-size: .73rem; color: var(--c-muted); }
+        .ab-pager-btns { display: flex; align-items: center; gap: 6px; }
+        .ab-pbtn {
+          display: flex; align-items: center; justify-content: center;
+          width: 32px; height: 32px; border-radius: 8px;
+          border: 1px solid var(--c-border); background: var(--c-surface);
+          color: var(--c-muted); cursor: pointer; transition: all .13s;
+        }
+        .ab-pbtn:hover:not(:disabled) {
+          border-color: var(--c-accent); color: var(--c-accent);
+          background: color-mix(in srgb,var(--c-accent) 8%,transparent);
+        }
+        .ab-pbtn:disabled { opacity: .35; cursor: not-allowed; }
+        .ab-pbtn svg { width: 13px; height: 13px; }
+        .ab-pnum { font-size: .78rem; color: var(--c-muted); padding: 0 6px; }
+
+        /* ─── Empty / loading ─── */
+        .ab-empty {
+          display: flex; flex-direction: column; align-items: center; justify-content: center;
+          gap: 10px; padding: 50px 20px; color: var(--c-muted); font-size: .82rem;
+        }
+        .ab-empty svg { width: 36px; height: 36px; opacity: .25; }
+        .ab-sk { background: var(--c-surface-2); border-radius: 6px; animation: ab-sk 1.1s ease infinite alternate; }
+
+        /* ─── Modal overlay ─── */
+        .ab-ov {
+          position: fixed; inset: 0; z-index: 400;
+          background: rgba(6,14,24,.65); backdrop-filter: blur(6px);
+          display: flex; align-items: center; justify-content: center; padding: 20px;
+          animation: ab-fade-in .16s ease;
+        }
+        .ab-modal {
+          background: var(--c-surface); border: 1px solid var(--c-border);
+          border-radius: 20px; padding: 26px; width: 100%; max-width: 400px;
+          box-shadow: 0 24px 80px rgba(0,0,0,.35);
+          animation: ab-scale-in .18s ease;
+        }
+        .ab-modal-hd {
+          display: flex; align-items: flex-start; justify-content: space-between;
+          margin-bottom: 6px;
+        }
+        .ab-modal-title { font-size: 1rem; font-weight: 800; color: var(--c-text); }
+        .ab-modal-sub { font-size: .75rem; color: var(--c-muted); margin-top: 3px; line-height: 1.4; }
+        .ab-modal-close {
+          display: flex; align-items: center; justify-content: center;
+          width: 30px; height: 30px; border-radius: 8px;
+          border: 1px solid var(--c-border); background: var(--c-surface-2);
+          color: var(--c-muted); cursor: pointer; transition: all .13s; flex-shrink: 0;
+        }
+        .ab-modal-close:hover { border-color: var(--c-danger); color: var(--c-danger); background: var(--c-danger-soft); }
+        .ab-modal-close svg { width: 13px; height: 13px; }
+
+        .ab-divider { height: 1px; background: var(--c-border); margin: 16px 0; }
+
+        .ab-plan-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
+        .ab-plan-opt {
+          display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+          border-radius: 12px; border: 1.5px solid var(--c-border);
+          background: var(--c-surface-2); cursor: pointer; transition: all .14s;
+        }
+        .ab-plan-opt:hover { border-color: var(--c-accent); background: color-mix(in srgb,var(--c-accent) 5%,var(--c-surface)); }
+        .ab-plan-opt.sel  { border-color: var(--c-accent); background: color-mix(in srgb,var(--c-accent) 8%,var(--c-surface)); }
+        .ab-plan-opt-icon {
+          width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+          display: flex; align-items: center; justify-content: center;
+        }
+        .ab-plan-opt-icon svg { width: 14px; height: 14px; }
+        .ab-plan-opt-name { font-size: .84rem; font-weight: 800; color: var(--c-text); text-transform: capitalize; }
+        .ab-plan-opt-meta { font-size: .7rem; color: var(--c-muted); margin-top: 1px; }
+        .ab-plan-chk { margin-left: auto; flex-shrink: 0; }
+        .ab-plan-chk svg { width: 15px; height: 15px; }
+
+        .ab-save-btn {
+          width: 100%; display: flex; align-items: center; justify-content: center; gap: 7px;
+          padding: 12px; border-radius: 11px; background: var(--c-accent); color: #fff;
+          font-size: .85rem; font-weight: 800; font-family: inherit; border: none;
+          cursor: pointer; transition: opacity .14s, transform .14s;
+          box-shadow: 0 4px 18px color-mix(in srgb,var(--c-accent) 38%,transparent);
+        }
+        .ab-save-btn:hover:not(:disabled) { opacity: .88; transform: translateY(-1px); }
+        .ab-save-btn:disabled { opacity: .5; cursor: not-allowed; }
+        .ab-save-btn svg { width: 14px; height: 14px; }
       `}</style>
 
-      <div className="ab">
+      <div className="ab-root">
 
-        {/* ── Stats ─────────────────────────────────────────────────────── */}
-        {stats && (
-          <div className="ab-stats">
-            <StatCard
-              Icon={DollarSign} color="#10B981"
-              label="Total Revenue"
-              value={fmt(stats.totalRevenue)}
-            />
-            <StatCard
-              Icon={Building2} color="#38AECC"
-              label="Org Revenue"
-              value={fmt(stats.orgRevenue)}
-            />
-            <StatCard
-              Icon={User} color="#818CF8"
-              label="User Revenue"
-              value={fmt(stats.userRevenue)}
-            />
-            <StatCard
-              Icon={Crown} color="#FCD34D"
-              label="Paid Orgs"
-              value={String(stats.activePaidOrgs)}
-            />
-            <StatCard
-              Icon={TrendingUp} color="#818CF8"
-              label="Paid Users"
-              value={String(stats.activePaidUsers)}
-            />
-            <StatCard
-              Icon={Clock} color="var(--c-warn)"
-              label="Pending"
-              value={String(stats.pendingCount)}
-            />
-            <StatCard
-              Icon={AlertTriangle} color="var(--c-danger)"
-              label="Failed"
-              value={String(stats.failedCount)}
-            />
-          </div>
-        )}
+        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            STATS GRID
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        <div className="ab-stats">
+          {stats ? (
+            <>
+              <StatCard Icon={DollarSign} color="#10B981"  label="Total Revenue"   val={<AnimNum to={stats.totalRevenue} suffix=" RWF"/>} trend="+12%" up />
+              <StatCard Icon={Building2}  color="#38AECC"  label="Org Revenue"     val={<AnimNum to={stats.orgRevenue}   suffix=" RWF"/>} trend="+8%"  up />
+              <StatCard Icon={User}       color="#818CF8"  label="User Revenue"    val={<AnimNum to={stats.userRevenue}  suffix=" RWF"/>} trend="+18%" up />
+              <StatCard Icon={Crown}      color="#FCD34D"  label="Paid Orgs"       val={<AnimNum to={stats.activePaidOrgs}/>}             trend="+3%"  up />
+              <StatCard Icon={TrendingUp} color="#818CF8"  label="Paid Users"      val={<AnimNum to={stats.activePaidUsers}/>}            trend="+9%"  up />
+              <StatCard Icon={Clock}      color="var(--c-warn)"    label="Pending Txns"    val={<AnimNum to={stats.pendingCount}/>}               trend=""    />
+              <StatCard Icon={AlertTriangle} color="var(--c-danger)" label="Failed Txns"  val={<AnimNum to={stats.failedCount}/>}               trend=""    />
+            </>
+          ) : (
+            Array.from({ length: 7 }).map((_, i) => (
+              <div key={i} className="ab-stat" style={{ animationDelay: `${i * .04}s` }}>
+                <div className="ab-sk" style={{ width:34, height:34, borderRadius:10 }}/>
+                <div className="ab-sk" style={{ width:"60%", height:20, borderRadius:6 }}/>
+                <div className="ab-sk" style={{ width:"45%", height:12, borderRadius:5 }}/>
+              </div>
+            ))
+          )}
+        </div>
 
-        {/* ── Toolbar ───────────────────────────────────────────────────── */}
+        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            TOOLBAR
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
         <div className="ab-toolbar">
-          <div className="ab-search">
+          <div className="ab-search-box">
             <Search size={13}/>
             <input
-              placeholder="Search by name, email…"
+              placeholder="Search name, email, ref…"
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
             />
+            {search && (
+              <button style={{ background:"none",border:"none",cursor:"pointer",color:"var(--c-muted)",display:"flex",padding:0 }}
+                onClick={() => { setSearch(""); setPage(1); }}>
+                <X size={12}/>
+              </button>
+            )}
           </div>
 
+          {/* Type filter */}
           <div className="ab-seg">
-            {(["all", "org", "user"] as const).map(t => (
-              <button key={t} className={`ab-seg-btn${typeFilter === t ? " ab-seg-btn--on" : ""}`}
-                onClick={() => { setType(t); setPage(1); }}>
-                {t === "all" ? "All" : t === "org" ? "Orgs" : "Users"}
+            {(["all","org","user"] as const).map(t => (
+              <button key={t} className={`ab-seg-btn${typeFilter===t?" on":""}`}
+                onClick={() => { setTypeFilter(t); setPage(1); }}>
+                {t==="all" ? "All" : t==="org" ? "Orgs" : "Users"}
               </button>
             ))}
           </div>
 
+          {/* Status filter */}
           <div className="ab-seg">
-            {(["all", "success", "pending", "failed"] as const).map(s => (
-              <button key={s} className={`ab-seg-btn${statusFilter === s ? " ab-seg-btn--on" : ""}`}
+            {(["all","success","pending","failed"] as const).map(s => (
+              <button key={s} className={`ab-seg-btn${statusFilter===s?" on":""}`}
                 onClick={() => { setStatusFilter(s); setPage(1); }}>
-                {s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice(1)}
+                {s==="all" ? "All" : s==="success" ? "Paid" : s==="pending" ? "Pending" : "Failed"}
               </button>
             ))}
           </div>
 
-          <button className="ab-refresh" title="Refresh" onClick={() => fetchData(search, typeFilter, statusFilter, page)}>
-            <RefreshCw size={14} className={loading ? "spin" : ""}/>
+          <button className="ab-icon-btn" title="Refresh"
+            onClick={() => fetchData(search, typeFilter, statusFilter, page)}>
+            <RefreshCw size={14} className={loading ? "ab-spin" : ""}/>
           </button>
         </div>
 
-        {/* ── Table ─────────────────────────────────────────────────────── */}
-        <div className="ab-table-card">
-          <div className="ab-table-head">
-            <span className="ab-table-title">Billing Records</span>
-            <span className="ab-table-count">{total.toLocaleString()} total</span>
+        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            TABLE
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        <div className="ab-card">
+          <div className="ab-card-head">
+            <span className="ab-card-title">Billing Records</span>
+            <span className="ab-card-count">{total.toLocaleString()} total</span>
           </div>
 
-          <div className="ab-table-wrap">
+          <div className="ab-tbl-wrap">
             {loading ? (
               <div className="ab-empty">
-                <RefreshCw className="spin" style={{ opacity: .4, marginBottom: 10, display: "block", marginInline: "auto" }}/>
-                Loading…
+                <RefreshCw className="ab-spin" style={{ width:28,height:28 }}/>
+                <span>Loading records…</span>
               </div>
             ) : records.length === 0 ? (
               <div className="ab-empty">
                 <Receipt/>
-                No billing records found
+                <span>No billing records match your filters</span>
               </div>
             ) : (
-              <table className="ab-table">
+              <table className="ab-tbl">
                 <thead>
                   <tr>
                     <th>Type</th>
@@ -475,68 +559,98 @@ export default function AdminBilling() {
                     <th>Plan</th>
                     <th>Amount</th>
                     <th>Status</th>
-                    <th>Transaction ref</th>
+                    <th>Reference</th>
                     <th>Date</th>
-                    <th></th>
+                    <th style={{ width:40 }}></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {records.map(row => {
+                  {records.map((row, idx) => {
                     const sm = STATUS_META[row.status] ?? STATUS_META.failed;
+                    const pm = PLAN_META[row.plan]    ?? PLAN_META.free;
                     return (
-                      <tr key={row.id}>
+                      <tr key={row.id} style={{ animationDelay: `${idx * .02}s` }}>
+
+                        {/* Type */}
                         <td>
-                          <span className={`ab-kind ab-kind--${row.kind}`}>
+                          <span className={`ab-kind-badge ${row.kind}`}>
                             {row.kind === "org" ? <Building2 size={10}/> : <User size={10}/>}
                             {row.kind === "org" ? "Org" : "User"}
                           </span>
                         </td>
+
+                        {/* Entity */}
                         <td>
-                          <div className="ab-entity">
+                          <div className="ab-entity-cell">
                             <span className="ab-entity-name">{row.entityName}</span>
                             <span className="ab-entity-email">{row.entityEmail}</span>
                           </div>
                         </td>
-                        <td><span className="ab-plan">{row.plan}</span></td>
-                        <td><span className="ab-amount">{row.amountRWF > 0 ? fmt(row.amountRWF) : "Free"}</span></td>
+
+                        {/* Plan */}
                         <td>
-                          <span className={`ab-status ab-status--${row.status}`}>
-                            <sm.Icon size={11}/>
+                          <span className="ab-plan-badge" style={{ background:pm.bg, color:pm.color, borderColor:`${pm.color}30` }}>
+                            <span className="ab-plan-dot" style={{ background:pm.color }}/>
+                            {row.plan}
+                          </span>
+                        </td>
+
+                        {/* Amount */}
+                        <td>
+                          <span className="ab-amount" style={{ color: row.amountRWF === 0 ? "var(--c-muted)" : "var(--c-text)" }}>
+                            {fmt(row.amountRWF)}
+                          </span>
+                        </td>
+
+                        {/* Status */}
+                        <td>
+                          <span className={`ab-status ${sm.cls}`}>
+                            <sm.icon size={11}/>
                             {sm.label}
                           </span>
                         </td>
+
+                        {/* Ref */}
                         <td>
                           <span className="ab-ref" title={row.txRef}>{row.txRef}</span>
                           {row.flwRef && (
-                            <span className="ab-ref" title={`FLW: ${row.flwRef}`} style={{ opacity: .6 }}>&nbsp;·&nbsp;{row.flwRef}</span>
+                            <span className="ab-ref" title={`FLW: ${row.flwRef}`} style={{ opacity:.55, marginTop:1 }}>
+                              {row.flwRef}
+                            </span>
                           )}
                         </td>
-                        <td style={{ whiteSpace: "nowrap" }}>{fmtDate(row.createdAt)}</td>
+
+                        {/* Date */}
+                        <td style={{ whiteSpace:"nowrap", fontSize:".77rem" }}>{fmtDate(row.createdAt)}</td>
+
+                        {/* Actions */}
                         <td>
-                          <div className="ab-menu-wrap" onClick={e => e.stopPropagation()}>
-                            <button className="ab-menu-btn" onClick={() => setMenu(m => m === row.id ? null : row.id)}>
+                          <div className="ab-mw" onClick={e => e.stopPropagation()}>
+                            <button className="ab-mbtn"
+                              onClick={() => setMenu(m => m === row.id ? null : row.id)}>
                               <MoreHorizontal size={14}/>
                             </button>
+
                             {menu === row.id && (
                               <div className="ab-menu">
-                                <div className="ab-menu-section">Override plan</div>
-                                <button className="ab-menu-item" onClick={() => openPlanModal(row)}>
+                                <div className="ab-msec">Override plan</div>
+                                <button className="ab-mi" onClick={() => openPlanModal(row)}>
                                   <Crown size={13}/> Change plan
                                 </button>
-                                <div className="ab-menu-divider"/>
-                                <div className="ab-menu-section">Mark record</div>
+                                <div className="ab-mdiv"/>
+                                <div className="ab-msec">Mark record as</div>
                                 {row.status !== "success" && (
-                                  <button className="ab-menu-item ab-menu-item--success" onClick={() => setRecordStatus(row, "success")}>
+                                  <button className="ab-mi ok" onClick={() => setRecordStatus(row, "success")}>
                                     <CheckCircle size={13}/> Mark as paid
                                   </button>
                                 )}
                                 {row.status !== "pending" && (
-                                  <button className="ab-menu-item" onClick={() => setRecordStatus(row, "pending")}>
+                                  <button className="ab-mi" onClick={() => setRecordStatus(row, "pending")}>
                                     <Clock size={13}/> Mark as pending
                                   </button>
                                 )}
                                 {row.status !== "failed" && (
-                                  <button className="ab-menu-item ab-menu-item--danger" onClick={() => setRecordStatus(row, "failed")}>
+                                  <button className="ab-mi danger" onClick={() => setRecordStatus(row, "failed")}>
                                     <XCircle size={13}/> Mark as failed
                                   </button>
                                 )}
@@ -556,14 +670,14 @@ export default function AdminBilling() {
           {pages > 1 && (
             <div className="ab-pager">
               <span className="ab-pager-info">
-                Showing {Math.min((page - 1) * PAGE_SIZE + 1, total)}–{Math.min(page * PAGE_SIZE, total)} of {total.toLocaleString()}
+                Showing {Math.min((page-1)*PAGE_SIZE+1, total)}–{Math.min(page*PAGE_SIZE, total)} of {total.toLocaleString()}
               </span>
-              <div className="ab-pager-right">
-                <button className="ab-pbtn" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
+              <div className="ab-pager-btns">
+                <button className="ab-pbtn" disabled={page<=1} onClick={() => setPage(p => p-1)}>
                   <ChevronLeft size={13}/>
                 </button>
-                <span className="ab-page-num">{page} / {pages}</span>
-                <button className="ab-pbtn" disabled={page >= pages} onClick={() => setPage(p => p + 1)}>
+                <span className="ab-pnum">{page} / {pages}</span>
+                <button className="ab-pbtn" disabled={page>=pages} onClick={() => setPage(p => p+1)}>
                   <ChevronRight size={13}/>
                 </button>
               </div>
@@ -572,15 +686,20 @@ export default function AdminBilling() {
         </div>
       </div>
 
-      {/* ── Plan override modal ───────────────────────────────────────── */}
+      {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+          PLAN MODAL
+      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       {planModal && (
-        <div className="ab-modal-ov" onClick={() => !saving && setPlanModal(null)}>
+        <div className="ab-ov" onClick={() => !saving && setPlanModal(null)}>
           <div className="ab-modal" onClick={e => e.stopPropagation()}>
-            <div className="ab-modal-head">
+
+            <div className="ab-modal-hd">
               <div>
                 <div className="ab-modal-title">Override Plan</div>
                 <div className="ab-modal-sub">
-                  {planModal.row.entityName} · {planModal.row.kind === "org" ? "Organisation" : "User"}
+                  {planModal.row.entityName}
+                  <span style={{ opacity:.5, margin:"0 5px" }}>·</span>
+                  {planModal.row.kind === "org" ? "Organisation" : "User account"}
                 </div>
               </div>
               <button className="ab-modal-close" onClick={() => setPlanModal(null)} disabled={saving}>
@@ -588,34 +707,34 @@ export default function AdminBilling() {
               </button>
             </div>
 
-            <div className="ab-plan-opts">
+            <div className="ab-divider"/>
+
+            <div className="ab-plan-list">
               {(planModal.row.kind === "org" ? ORG_PLANS : USER_PLANS).map(p => (
-                <div key={p}
-                  className={`ab-plan-opt${newPlan === p ? " ab-plan-opt--on" : ""}`}
-                  onClick={() => setNewPlan(p)}
-                >
-                  <div className="ab-plan-opt-dot"
-                    style={{ background: `color-mix(in srgb, ${p === "free" ? "#34D399" : p === "plus" ? "#818CF8" : p === "starter" ? "#38AECC" : p === "pro" ? "#818CF8" : "#FCD34D"} 16%, transparent)` }}>
-                    {p === "free" ? <Zap size={14} style={{ color: "#34D399" }}/> : <Crown size={14} style={{ color: p === "plus" ? "#818CF8" : p === "starter" ? "#38AECC" : p === "pro" ? "#818CF8" : "#FCD34D" }}/>}
+                <div key={p.id}
+                  className={`ab-plan-opt${newPlan===p.id?" sel":""}`}
+                  onClick={() => setNewPlan(p.id)}>
+                  <div className="ab-plan-opt-icon"
+                    style={{ background:`color-mix(in srgb,${p.color} 16%,transparent)` }}>
+                    <p.Icon size={14} style={{ color:p.color }}/>
                   </div>
                   <div>
-                    <div className="ab-plan-opt-name">{p}</div>
-                    <div className="ab-plan-opt-desc">
-                      {p === "free"    ? (planModal.row.kind === "org" ? "500 msg/mo · 0 RWF" : "200 msg/mo · 0 RWF") :
-                       p === "plus"    ? "1,500 msg/mo · 2,000 RWF" :
-                       p === "starter" ? "2,000 msg/mo · 4,000 RWF" :
-                       p === "pro"     ? "8,000 msg/mo · 12,000 RWF" :
-                                         "25,000 msg/mo · 28,000 RWF"}
-                    </div>
+                    <div className="ab-plan-opt-name">{p.id}</div>
+                    <div className="ab-plan-opt-meta">{p.msgs} · {p.price}</div>
                   </div>
-                  {newPlan === p && <Check size={14} style={{ marginLeft: "auto", color: "var(--c-accent)" }}/>}
+                  {newPlan === p.id && (
+                    <span className="ab-plan-chk">
+                      <Check size={15} style={{ color:"var(--c-accent)" }}/>
+                    </span>
+                  )}
                 </div>
               ))}
             </div>
 
-            <button className="ab-modal-save" disabled={!newPlan || saving} onClick={savePlan}>
-              {saving ? <RefreshCw size={14} className="spin"/> : <Check size={14}/>}
-              {saving ? "Saving…" : "Apply plan"}
+            <button className="ab-save-btn" disabled={!newPlan || saving} onClick={savePlan}>
+              {saving
+                ? <><RefreshCw size={14} className="ab-spin"/> Applying…</>
+                : <><Check size={14}/> Apply Plan</>}
             </button>
           </div>
         </div>
@@ -624,15 +743,31 @@ export default function AdminBilling() {
   );
 }
 
-// ── Stat Card ─────────────────────────────────────────────────────────────
-
-function StatCard({ Icon, color, label, value }: { Icon: any; color: string; label: string; value: string }) {
+/* ── Stat card ─────────────────────────────────────────────────── */
+function StatCard({
+  Icon, color, label, val, trend, up,
+}: {
+  Icon: any; color: string; label: string;
+  val: React.ReactNode; trend?: string; up?: boolean;
+}) {
   return (
-    <div className="ab-stat">
-      <div className="ab-stat-icon" style={{ background: `color-mix(in srgb, ${color} 16%, transparent)` }}>
-        <Icon size={16} style={{ color }}/>
+    <div className="ab-stat" style={{ ["--ac" as any]: color }}>
+      <div className="ab-stat-top">
+        <div className="ab-stat-icon" style={{ background:`color-mix(in srgb,${color} 14%,transparent)` }}>
+          <Icon size={16} style={{ color }}/>
+        </div>
+        {trend && (
+          <div className="ab-stat-trend"
+            style={{
+              background: up ? "var(--c-success-soft)" : "var(--c-danger-soft)",
+              color:       up ? "var(--c-success)"      : "var(--c-danger)",
+            }}>
+            {up ? <ArrowUpRight size={10}/> : <ArrowDownRight size={10}/>}
+            {trend}
+          </div>
+        )}
       </div>
-      <div className="ab-stat-val">{value}</div>
+      <div className="ab-stat-val">{val}</div>
       <div className="ab-stat-lbl">{label}</div>
     </div>
   );
