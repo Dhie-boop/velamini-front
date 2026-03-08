@@ -32,12 +32,15 @@ export async function POST(req: Request) {
   }
 
   // Validate phone number if provided
-  const phoneNumber: string | undefined = body.phoneNumber ?? undefined;
+  let phoneNumber: string | undefined = body.phoneNumber ?? undefined;
   if (phoneNumber !== undefined) {
-    const cleaned = phoneNumber.replace(/\s/g, "");
+    let cleaned = phoneNumber.replace(/\s/g, "");
+    // Normalize local Rwanda format (0788...) to international (+250788...)
+    if (/^0[78]\d{8}$/.test(cleaned)) cleaned = "+250" + cleaned.slice(1);
     if (!/^\+?[1-9]\d{7,14}$/.test(cleaned)) {
       return NextResponse.json({ error: "Invalid phone number" }, { status: 400 });
     }
+    phoneNumber = cleaned;
   }
 
   const user = await prisma.user.findUnique({
