@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Zap, Check, CreditCard, Calendar,
-  Receipt, Star, RefreshCw, X, Smartphone,
+  Receipt, Star, RefreshCw, X,
   AlertTriangle, TrendingUp, ArrowRight, Crown,
   ShieldCheck, Sparkles, BarChart2,
 } from "lucide-react";
@@ -90,8 +90,6 @@ export default function UserBilling({ userId, paymentStatus }: UserBillingProps)
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [period,      setPeriod]      = useState<"monthly"|"6months"|"yearly">("monthly");
   const [paying,      setPaying]      = useState(false);
-  const [phone,       setPhone]       = useState("");
-  const [phoneErr,    setPhoneErr]    = useState("");
   const [payResult,   setPayResult]   = useState<"success"|"pending"|"failed"|null>(paymentStatus ?? null);
 
   /* ── Fetch ──────────────────────────────────────────────────────── */
@@ -106,18 +104,12 @@ export default function UserBilling({ userId, paymentStatus }: UserBillingProps)
   useEffect(() => { fetchBilling(); }, []);
 
   /* ── Checkout ───────────────────────────────────────────────────── */
-  const validatePhone = (v: string) => {
-    const c = v.replace(/\s/g, "");
-    return /^\+?250[78]\d{8}$/.test(c) || /^0[78]\d{8}$/.test(c);
-  };
-
   const handleUpgrade = async () => {
-    if (!validatePhone(phone)) { setPhoneErr("Enter a valid Rwanda mobile number (e.g. +250788123456)"); return; }
-    setPhoneErr(""); setPaying(true); setPayResult(null);
+    setPaying(true); setPayResult(null);
     try {
       const data = await fetch("/api/billing/user/create-payment", {
         method:"POST", headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({ plan:"plus", period, phoneNumber:phone.replace(/\s/g,"") }),
+        body:JSON.stringify({ plan:"plus", period }),
       }).then(r => r.json());
       if (data.error) { setPaying(false); return; }
       await loadFlwScript();
@@ -652,27 +644,8 @@ export default function UserBilling({ userId, paymentStatus }: UserBillingProps)
                 );
               })()}
 
-              {/* Phone */}
-              <div className="ub-field">
-                <label className="ub-field-lbl">
-                  <Smartphone size={12}/> MTN / Airtel Rwanda number
-                </label>
-                <input
-                  className={`ub-input${phoneErr?" err":""}`}
-                  type="tel"
-                  placeholder="+250788123456 or 0788123456"
-                  value={phone}
-                  onChange={e => { setPhone(e.target.value); if (phoneErr) setPhoneErr(""); }}
-                  disabled={paying}
-                />
-                {phoneErr && (
-                  <div className="ub-err-msg"><AlertTriangle size={12}/>{phoneErr}</div>
-                )}
-              </div>
-
               <p className="ub-pay-note">
-                You'll receive a Mobile Money prompt on your phone. Enter your PIN to confirm —
-                your plan activates immediately after payment.
+                You'll be taken to Flutterwave's secure page to enter your Mobile Money number and confirm payment.
               </p>
 
               <button className="ub-pay-btn" onClick={handleUpgrade} disabled={paying}>
