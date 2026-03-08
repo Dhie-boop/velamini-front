@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import {
   LayoutDashboard, Users, BarChart2, ShieldAlert, Settings,
-  Menu, X, Moon, Sun, LogOut, ChevronRight, Bell, Building2, TrendingUp
+  Menu, X, Moon, Sun, LogOut, ChevronRight, Bell, Building2, TrendingUp, CreditCard
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import AdminOverview       from "./overview";
@@ -12,13 +12,15 @@ import AdminAnalytics      from "./analytics";
 import AdminModeration     from "./moderation";
 import AdminSettings       from "./settings";
 import AdminOrganizations  from "./organizations";
+import AdminBilling        from "./billing";
 
-export type AdminView = "overview" | "users" | "analytics" | "moderation" | "settings" | "organizations";
+export type AdminView = "overview" | "users" | "analytics" | "moderation" | "settings" | "organizations" | "billing";
 
 const navItems: { view: AdminView; label: string; Icon: any; badge?: string }[] = [
   { view: "overview",       label: "Overview",       Icon: LayoutDashboard },
   { view: "users",          label: "Users",          Icon: Users           },
   { view: "organizations",  label: "Organizations",  Icon: Building2       },
+  { view: "billing",        label: "Billing",        Icon: CreditCard      },
   { view: "analytics",      label: "Analytics",      Icon: BarChart2       },
   { view: "moderation",     label: "Moderation",     Icon: ShieldAlert     },
   { view: "settings",       label: "Settings",       Icon: Settings        },
@@ -26,7 +28,7 @@ const navItems: { view: AdminView; label: string; Icon: any; badge?: string }[] 
 
 const viewLabel: Record<AdminView, string> = {
   overview: "Overview", users: "Users", organizations: "Organizations",
-  analytics: "Analytics", moderation: "Moderation", settings: "Settings",
+  analytics: "Analytics", moderation: "Moderation", settings: "Settings", billing: "Billing",
 };
 
 export default function AdminWrapper() {
@@ -68,6 +70,7 @@ export default function AdminWrapper() {
       case "overview":       return <AdminOverview      onNavigate={go} />;
       case "users":          return <AdminUsers />;
       case "organizations":  return <AdminOrganizations />;
+      case "billing":        return <AdminBilling />;
       case "analytics":      return <AdminAnalytics />;
       case "moderation":     return <AdminModeration />;
       case "settings":       return <AdminSettings />;
