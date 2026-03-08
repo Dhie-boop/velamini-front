@@ -32,5 +32,33 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
 
   const user = await prisma.user.update({ where: { id }, data });
+
+  // Send a notification to the user when their account status changes
+  if (status && ["flagged", "banned", "active"].includes(status)) {
+    const notifMap: Record<string, { type: string; title: string; body: string }> = {
+      flagged: {
+        type: "warning",
+        title: "Account flagged",
+        body: "Your account has been flagged by our moderation team for review. Some features may be limited during this time. If you believe this is a mistake, please contact support.",
+      },
+      banned: {
+        type: "warning",
+        title: "Account suspended",
+        body: "Your account has been suspended due to a violation of our terms of service. If you believe this is a mistake, please contact support.",
+      },
+      active: {
+        type: "info",
+        title: "Account reinstated",
+        body: "Your account has been reviewed and reinstated. You now have full access again. Thank you for your patience.",
+      },
+    };
+    const notif = notifMap[status];
+    if (notif) {
+      await prisma.notification.create({
+        data: { userId: id, type: notif.type, scope: "personal", title: notif.title, body: notif.body },
+      }).catch(() => {});
+    }
+  }
+
   return NextResponse.json({ ok: true, user });
 }
