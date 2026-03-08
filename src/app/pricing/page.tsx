@@ -21,6 +21,7 @@ export const PERSONAL_PLANS = [
     badge: null,
     features: [
       { t: "200 messages / month",          ok: true  },
+      { t: "150K AI tokens / month",        ok: true  },
       { t: "1 personal AI agent",           ok: true  },
       { t: "Chat via dashboard",            ok: true  },
       { t: "Conversation history (7 days)", ok: true  },
@@ -35,7 +36,7 @@ export const PERSONAL_PLANS = [
   {
     id: "personal-plus",
     label: "Personal Plus",
-    price: 100,
+    price: 2000,
     msgs: 1500,
     Icon: Sparkles,
     color: "#38AECC",
@@ -43,6 +44,7 @@ export const PERSONAL_PLANS = [
     badge: "Recommended",
     features: [
       { t: "1,500 messages / month",        ok: true },
+      { t: "1M AI tokens / month",          ok: true },
       { t: "1 personal AI agent",           ok: true },
       { t: "Chat via dashboard",            ok: true },
       { t: "Full conversation history",     ok: true },
@@ -68,6 +70,7 @@ export const ORG_PLANS = [
     badge: null,
     features: [
       { t: "500 messages / month",          ok: true  },
+      { t: "200K AI tokens / month",        ok: true  },
       { t: "1 AI agent",                    ok: true  },
       { t: "REST API access",               ok: true  },
       { t: "Embed widget",                  ok: true  },
@@ -82,7 +85,7 @@ export const ORG_PLANS = [
   {
     id: "starter",
     label: "Starter",
-    price: 100,
+    price: 4000,
     msgs: 2000,
     Icon: TrendingUp,
     color: "#38AECC",
@@ -90,6 +93,7 @@ export const ORG_PLANS = [
     badge: null,
     features: [
       { t: "2,000 messages / month",        ok: true },
+      { t: "2M AI tokens / month",          ok: true },
       { t: "1 AI agent",                    ok: true },
       { t: "REST API + Embed widget",       ok: true },
       { t: "Full session history",          ok: true },
@@ -104,7 +108,7 @@ export const ORG_PLANS = [
   {
     id: "pro",
     label: "Pro",
-    price: 100,
+    price: 12000,
     msgs: 8000,
     Icon: CreditCard,
     color: "#818CF8",
@@ -112,6 +116,7 @@ export const ORG_PLANS = [
     badge: "Most Popular",
     features: [
       { t: "8,000 messages / month",        ok: true },
+      { t: "6M AI tokens / month",          ok: true },
       { t: "1 AI agent",                    ok: true },
       { t: "REST API + Embed + React SDK",  ok: true },
       { t: "Full session history",          ok: true },
@@ -126,7 +131,7 @@ export const ORG_PLANS = [
   {
     id: "scale",
     label: "Scale",
-    price: 100,
+    price: 28000,
     msgs: 25000,
     Icon: Crown,
     color: "#FCD34D",
@@ -134,6 +139,7 @@ export const ORG_PLANS = [
     badge: "Best Value",
     features: [
       { t: "25,000 messages / month",       ok: true },
+      { t: "14M AI tokens / month",         ok: true },
       { t: "1 AI agent",                    ok: true },
       { t: "REST API + Embed + React SDK",  ok: true },
       { t: "Full session history",          ok: true },
@@ -150,8 +156,9 @@ export const ORG_PLANS = [
 const FAQS = [
   { q: "Can I start without a credit card?",    a: "Yes — the Free plan requires no payment. You get messages immediately after signing up." },
   { q: "What payment methods are supported?",   a: "We accept MTN MoMo, Airtel Money, Visa, and Mastercard via Flutterwave — common across Rwanda, Kenya, Nigeria and much of Africa." },
-  { q: "When does my message count reset?",     a: "On the 1st of each calendar month, your message counter resets to zero automatically." },
+  { q: "When does my message count reset?",     a: "On the 1st of each calendar month, your message and AI token counters reset to zero automatically." },
   { q: "What happens when I hit my limit?",     a: "Your agent will stop responding until the counter resets or you upgrade. We email you at 80% and 95% usage." },
+  { q: "Can I pay for multiple months at once?", a: "Yes — choose 6 months (save 10%) or yearly (save 20%) at checkout. The full amount is billed upfront and your plan stays active for the entire selected period." },
   { q: "Can I switch between Personal and Org?",a: "Yes — you can upgrade or switch account type any time from your account settings." },
   { q: "Can I downgrade?",                      a: "Yes. Downgrades take effect at the start of your next billing cycle. Current limits stay until then." },
 ];
@@ -175,9 +182,17 @@ function FaqItem({ q, a }: { q: string; a: string }) {
 }
 
 /* ── Plan card ───────────────────────────────────────────────── */
-function PlanCard({ plan, dark }: { plan: typeof ORG_PLANS[number] | typeof PERSONAL_PLANS[number]; dark: boolean }) {
+const PERIOD_DISPLAY = {
+  monthly:   { perMonthFactor: 1,   billingNote: "" },
+  "6months": { perMonthFactor: 0.9, billingNote: "billed every 6 months" },
+  yearly:    { perMonthFactor: 0.8, billingNote: "billed annually" },
+} as const;
+
+function PlanCard({ plan, dark, period }: { plan: typeof ORG_PLANS[number] | typeof PERSONAL_PLANS[number]; dark: boolean; period: "monthly" | "6months" | "yearly" }) {
   const Ic = plan.Icon;
   const hi = plan.highlight;
+  const pInfo = PERIOD_DISPLAY[period];
+  const monthlyPrice = plan.price === 0 ? 0 : Math.round((plan.price as number) * pInfo.perMonthFactor);
   return (
     <div className={`pc${hi ? " pc--hi" : ""}`} style={{ ["--col" as any]: plan.color }}>
       {/* top accent line */}
@@ -205,11 +220,16 @@ function PlanCard({ plan, dark }: { plan: typeof ORG_PLANS[number] | typeof PERS
         {plan.price === 0
           ? <span className="pc-free">Free</span>
           : <>
-              <span className="pc-num">{fmtRWF(plan.price)}</span>
+              <span className="pc-num">{fmtRWF(monthlyPrice)}</span>
               <span className="pc-rwf">RWF<span className="pc-mo">/mo</span></span>
             </>
         }
       </div>
+      {plan.price !== 0 && period !== "monthly" && (
+        <div className="pc-billing-note">
+          {pInfo.billingNote} · save {period === "6months" ? "10%" : "20%"}
+        </div>
+      )}
       <div className="pc-limit" style={{ color: plan.color }}>
         {plan.msgs.toLocaleString()} messages / month
       </div>
@@ -247,6 +267,7 @@ function PlanCard({ plan, dark }: { plan: typeof ORG_PLANS[number] | typeof PERS
 export default function PricingPage() {
   const [isDark,  setIsDark]  = useState(true);
   const [tab,     setTab]     = useState<"personal"|"org">("org");
+  const [period,  setPeriod]  = useState<"monthly"|"6months"|"yearly">("monthly");
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -534,6 +555,44 @@ export default function PricingPage() {
         .pc-cta--hi{color:#fff!important}
         .pc-cta--hi:hover{opacity:.88;color:#fff!important}
 
+        /* ─── Billing note below price ────────────────────────── */
+        .pc-billing-note{
+          padding:3px 20px 0;
+          font-size:.67rem;font-weight:600;
+          color:var(--mu);opacity:.85;
+        }
+
+        /* ─── Period toggle ────────────────────────────────────── */
+        .pper{
+          display:flex;justify-content:center;
+          margin-bottom:2rem;margin-top:-1rem;
+        }
+        .pper-inner{
+          display:inline-flex;align-items:center;
+          background:color-mix(in srgb,var(--su) 80%,transparent);
+          border:1.5px solid var(--br2);border-radius:14px;padding:4px;
+          backdrop-filter:blur(14px);gap:3px;
+          box-shadow:0 3px 18px rgba(0,0,0,.1);
+        }
+        .pper-btn{
+          display:flex;align-items:center;gap:6px;
+          padding:7px 18px;border:none;border-radius:10px;
+          font-family:inherit;font-size:.77rem;font-weight:600;
+          cursor:pointer;transition:all .2s;
+          color:var(--mu);background:none;
+        }
+        .pper-btn.on{
+          background:color-mix(in srgb,var(--ac) 15%,var(--su));
+          color:var(--ac);
+          box-shadow:0 1px 10px color-mix(in srgb,var(--ac) 20%,transparent);
+        }
+        .pper-save{
+          font-size:.62rem;font-weight:800;
+          background:color-mix(in srgb,#34D399 18%,transparent);
+          color:#34D399;padding:2px 7px;border-radius:8px;
+          letter-spacing:.02em;
+        }
+
         /* ─── Payment methods ──────────────────────────────────── */
         .ppay{text-align:center;padding:0 1rem 3.5rem}
         .ppay-lbl{font-size:.6rem;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--mu);margin-bottom:14px}
@@ -682,9 +741,29 @@ export default function PricingPage() {
           </div>
         </div>
 
+        {/* ── Billing period toggle ── */}
+        <div className="pper">
+          <div className="pper-inner">
+            {([
+              { key: "monthly",  label: "Monthly",  badge: null   },
+              { key: "6months",  label: "6 Months", badge: "-10%" },
+              { key: "yearly",   label: "Yearly",   badge: "-20%" },
+            ] as const).map(({ key, label, badge }) => (
+              <button
+                key={key}
+                className={`pper-btn${period === key ? " on" : ""}`}
+                onClick={() => setPeriod(key)}
+              >
+                {label}
+                {badge && <span className="pper-save">{badge}</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* ── Plan cards ── */}
         <div className={`pgrid ${tab==="personal" ? "pgrid--2" : "pgrid--4"}`}>
-          {plans.map(plan => <PlanCard key={plan.id} plan={plan as any} dark={isDark}/>)}
+          {plans.map(plan => <PlanCard key={plan.id} plan={plan as any} dark={isDark} period={period}/>)}
         </div>
 
         {/* ── Payment methods ── */}
@@ -715,6 +794,7 @@ export default function PricingPage() {
                 <tbody>
                   {[
                     ["Messages / month",     "200",    "1,500"],
+                    ["AI tokens / month",    "150K",   "1M"],
                     ["Personal AI agent",    "✓",      "✓"],
                     ["Dashboard chat",       "✓",      "✓"],
                     ["Conversation history", "7 days", "Full"],
@@ -744,6 +824,7 @@ export default function PricingPage() {
                 <tbody>
                   {[
                     ["Messages / month",    "500",    "2,000",  "8,000",    "25,000"],
+                    ["AI tokens / month",   "200K",   "2M",     "6M",       "14M"],
                     ["REST API",            "✓",      "✓",      "✓",        "✓"],
                     ["Embed widget",        "✓",      "✓",      "✓",        "✓"],
                     ["React / JS SDK",      "✓",      "✓",      "✓",        "✓"],

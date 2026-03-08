@@ -35,6 +35,38 @@ export default async function DashboardPage() {
     redirect("/Dashboard/organizations");
   }
 
+  // Fetch personal usage for the navbar pill (server-side so it shows immediately)
+  const usageData = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      personalPlanType:          true,
+      personalMonthlyMsgCount:   true,
+      personalMonthlyMsgLimit:   true,
+      personalMonthlyTokenCount: true,
+      personalMonthlyTokenLimit: true,
+      creditsExhaustedAt:        true,
+    },
+  });
+
+  const GRACE_MS = 3 * 24 * 60 * 60 * 1000;
+  const exhaustedMs  = usageData?.creditsExhaustedAt?.getTime() ?? null;
+  const graceEndsMs  = exhaustedMs ? exhaustedMs + GRACE_MS : null;
+  const nowMs        = Date.now();
+  const hardBlocked  = graceEndsMs !== null && nowMs > graceEndsMs;
+  const graceRemaining = graceEndsMs && !hardBlocked
+    ? Math.ceil((graceEndsMs - nowMs) / (24 * 60 * 60 * 1000))
+    : null;
+
+  const initialUsage = {
+    planType:     usageData?.personalPlanType ?? "free",
+    msgCount:     usageData?.personalMonthlyMsgCount   ?? 0,
+    msgLimit:     usageData?.personalMonthlyMsgLimit   ?? 200,
+    tokenCount:   usageData?.personalMonthlyTokenCount ?? 0,
+    tokenLimit:   usageData?.personalMonthlyTokenLimit ?? 150_000,
+    hardBlocked,
+    graceRemaining,
+  };
+
   // Check if user has knowledge base
   const knowledgeBase = await prisma.knowledgeBase.findUnique({
     where: { userId },
@@ -65,5 +97,5 @@ export default async function DashboardPage() {
   } : null;
 
   const userWithStatus = { ...session.user, status: (user as any)?.status ?? "active" };
-  return <DashboardWrapper user={userWithStatus} stats={stats} knowledgeBase={serializedKnowledgeBase} />;
+  return <DashboardWrapper user={userWithStatus} stats={stats} knowledgeBase={serializedKnowledgeBase} initialUsage={initialUsage}/>;
 }

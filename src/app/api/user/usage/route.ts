@@ -17,6 +17,7 @@ export async function GET() {
   const user = await prisma.user.findUnique({
     where:  { id: session.user.id },
     select: {
+      personalPlanType:          true,
       personalMonthlyMsgCount:   true,
       personalMonthlyMsgLimit:   true,
       personalMonthlyTokenCount: true,
@@ -40,6 +41,7 @@ export async function GET() {
 
   return NextResponse.json({
     ok: true,
+    planType:       user.personalPlanType ?? "free",
     msgCount:       user.personalMonthlyMsgCount,
     msgLimit:       user.personalMonthlyMsgLimit,
     tokenCount:     user.personalMonthlyTokenCount,

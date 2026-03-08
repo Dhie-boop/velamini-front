@@ -27,6 +27,7 @@ interface DashboardWrapperProps {
   knowledgeBase: any;
   swagList?: { id: string; content: string }[];
   slug?: string;
+  initialUsage?: { planType: string; msgCount: number; msgLimit: number; tokenCount: number; tokenLimit: number; hardBlocked: boolean; graceRemaining: number | null };
 }
 
 type NotifType = "info" | "success" | "warning" | "system" | "billing";
@@ -58,7 +59,7 @@ const viewLabels: Record<DashboardViewType, string> = {
   profile:"Profile", settings:"Settings", resume:"Resume", billing:"Billing",
 };
 
-export default function DashboardWrapper({ user, stats, knowledgeBase, swagList=[], slug }: DashboardWrapperProps) {
+export default function DashboardWrapper({ user, stats, knowledgeBase, swagList=[], slug, initialUsage }: DashboardWrapperProps) {
   const searchParams  = useSearchParams();
   const [activeView,   setActiveView]   = useState<DashboardViewType>("dashboard");
   const [paymentStatus, setPaymentStatus] = useState<"success" | "pending" | "failed" | null>(null);
@@ -71,7 +72,7 @@ export default function DashboardWrapper({ user, stats, knowledgeBase, swagList=
   const [liveSlug,     setLiveSlug]     = useState<string | null>(slug ?? null);
   const [notifs,       setNotifs]       = useState<Notif[]>([]);
   const [notifOpen,    setNotifOpen]    = useState(false);
-  const [usage,        setUsage]        = useState<{ msgCount:number; msgLimit:number; tokenCount:number; tokenLimit:number; hardBlocked:boolean; graceRemaining:number|null } | null>(null);
+  const [usage,        setUsage]        = useState<{ planType?: string; msgCount:number; msgLimit:number; tokenCount:number; tokenLimit:number; hardBlocked:boolean; graceRemaining:number|null } | null>(initialUsage ?? null);
 
   const notifRef = useRef<HTMLDivElement>(null);
   const shareRef = useRef<HTMLDivElement>(null);
@@ -119,9 +120,9 @@ export default function DashboardWrapper({ user, stats, knowledgeBase, swagList=
           })));
         }
       }).catch(()=>{});
-    // Load personal usage stats for navbar pill
+    // Load personal usage stats for navbar pill (refreshes the server-side initial data)
     fetch("/api/user/usage").then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.ok) setUsage({ msgCount: d.msgCount, msgLimit: d.msgLimit, tokenCount: d.tokenCount, tokenLimit: d.tokenLimit, hardBlocked: d.hardBlocked ?? false, graceRemaining: d.graceRemaining ?? null }); }).catch(()=>{});
+      .then(d => { if (d?.ok) setUsage({ planType: d.planType ?? "free", msgCount: d.msgCount, msgLimit: d.msgLimit, tokenCount: d.tokenCount, tokenLimit: d.tokenLimit, hardBlocked: d.hardBlocked ?? false, graceRemaining: d.graceRemaining ?? null }); }).catch(()=>{});
   }, []);
 
   useEffect(() => {
@@ -272,6 +273,7 @@ export default function DashboardWrapper({ user, stats, knowledgeBase, swagList=
         .dw-usage-pill--warn{border-color:color-mix(in srgb,#F59E0B 40%,transparent);background:color-mix(in srgb,#F59E0B 10%,transparent);color:#B45309}
         .dw-usage-pill--danger{border-color:color-mix(in srgb,var(--c-danger) 40%,transparent);background:var(--c-danger-soft,#fee2e2);color:var(--c-danger)}
         .dw-usage-pill svg{width:10px;height:10px;flex-shrink:0}
+        .dw-usage-free-badge{font-size:.52rem;font-weight:900;letter-spacing:.08em;padding:1px 5px;border-radius:4px;background:color-mix(in srgb,var(--c-accent,#29A9D4) 15%,transparent);color:var(--c-accent,#29A9D4);margin-right:1px}
         @media(max-width:900px){.dw-usage-pill{display:none}}
 
         /* ── Mobile bar ── */
@@ -522,31 +524,34 @@ export default function DashboardWrapper({ user, stats, knowledgeBase, swagList=
               <span className="dw-nb-active">{viewLabels[activeView]}</span>
             </nav>
             <div className="dw-nb-right">
-              {usage && (() => {
-                const used   = usage.msgCount;
-                const total  = usage.msgLimit;
-                const pct    = (used / Math.max(total, 1)) * 100;
-                const cls    = usage.hardBlocked
+              {(() => {
+                const used   = usage?.msgCount ?? 0;
+                const total  = Math.max(usage?.msgLimit ?? 200, 1);
+                const pct    = (used / total) * 100;
+                const isFree = !usage || (usage.planType ?? "free") === "free";
+                const cls    = (usage?.hardBlocked)
                   ? "dw-usage-pill--danger"
-                  : usage.graceRemaining !== null
+                  : (usage?.graceRemaining ?? null) !== null
                     ? "dw-usage-pill--warn"
                     : pct >= 90 ? "dw-usage-pill--danger" : pct >= 70 ? "dw-usage-pill--warn" : "";
                 const remaining = total - used;
-                const label  = usage.hardBlocked
+                const label  = (usage?.hardBlocked)
                   ? "Credits blocked"
-                  : usage.graceRemaining !== null
-                    ? `⚠ ${usage.graceRemaining}d grace left`
+                  : (usage?.graceRemaining ?? null) !== null
+                    ? `⚠ ${usage!.graceRemaining}d grace left`
                     : `${remaining.toLocaleString()} credits left`;
-                const titleTip = usage.hardBlocked
+                const titleTip = (usage?.hardBlocked)
                   ? "Your credits ran out over 3 days ago. Top up to re-enable chat and training."
-                  : usage.graceRemaining !== null
-                    ? `Credits exhausted — ${usage.graceRemaining} day(s) of grace remaining. Top up now to avoid losing access.`
+                  : (usage?.graceRemaining ?? null) !== null
+                    ? `Credits exhausted — ${usage!.graceRemaining} day(s) of grace remaining. Top up now to avoid losing access.`
                     : `${remaining.toLocaleString()} of ${total.toLocaleString()} credits remaining this month (${used.toLocaleString()} used)`;
                 return (
                   <div className={`dw-usage-pill ${cls}`} title={titleTip}
                     style={{ cursor: "pointer" }}
                     onClick={() => setActiveView("billing")}>
-                    <CreditCard size={10}/> {label}
+                    <CreditCard size={10}/>
+                    {isFree && <span className="dw-usage-free-badge">FREE</span>}
+                    {label}
                   </div>
                 );
               })()}
