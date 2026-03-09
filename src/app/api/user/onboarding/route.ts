@@ -1,6 +1,41 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { z } from "zod";
+
+const PERSONAL_DOMAINS = new Set([
+  "gmail.com",
+  "yahoo.com",
+  "hotmail.com",
+  "outlook.com",
+  "icloud.com",
+  "live.com",
+  "msn.com",
+  "aol.com",
+  "protonmail.com",
+  "me.com",
+  "ymail.com",
+  "googlemail.com",
+  "mail.com",
+  "inbox.com",
+]);
+
+function isPersonalEmail(email?: string | null): boolean {
+  if (!email) return false;
+  const domain = email.split("@")[1]?.toLowerCase();
+  return !!domain && PERSONAL_DOMAINS.has(domain);
+}
+
+const onboardingBodySchema = z.object({
+  accountType: z.enum(["personal", "organization"]),
+  organizationName: z.union([z.string().trim().min(1).max(120), z.literal("")]).optional(),
+  contactEmail: z.union([z.string().trim().email(), z.literal("")]).optional(),
+  industry: z.union([z.string().trim().max(120), z.literal("")]).optional(),
+  website: z.union([z.string().trim().url().max(300), z.literal("")]).optional(),
+  description: z.union([z.string().trim().max(2000), z.literal("")]).optional(),
+  agentName: z.union([z.string().trim().min(1).max(120), z.literal("")]).optional(),
+  agentPersonality: z.union([z.string().trim().max(2000), z.literal("")]).optional(),
+});
 
 export async function POST(req: Request) {
   try {
@@ -9,7 +44,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await req.json();
+    const bodyResult = onboardingBodySchema.safeParse(await req.json());
+    if (!bodyResult.success) {
+      return NextResponse.json({ error: "Invalid onboarding payload" }, { status: 400 });
+    }
+
     const {
       accountType,
       organizationName,
@@ -19,43 +58,86 @@ export async function POST(req: Request) {
       description,
       agentName,
       agentPersonality,
-    } = body;
+    } = bodyResult.data;
 
-    if (!accountType || (accountType !== "personal" && accountType !== "organization")) {
-      return NextResponse.json(
-        { error: "Invalid account type" },
-        { status: 400 }
-      );
+    if (accountType === "organization") {
+      if (!organizationName) {
+        return NextResponse.json({ error: "Organisation name is required" }, { status: 400 });
+      }
+      if (!contactEmail) {
+        return NextResponse.json({ error: "Contact email is required" }, { status: 400 });
+      }
+      if (isPersonalEmail(contactEmail)) {
+        return NextResponse.json(
+          { error: "Organisation accounts require a work/business email." },
+          { status: 400 }
+        );
+      }
+      if (!agentName) {
+        return NextResponse.json({ error: "Agent name is required" }, { status: 400 });
+      }
     }
 
-    // Update user account type
-    const updatedUser = await prisma.user.update({
-      where: { id: session.user.id },
-      data: {
-        accountType,
-        onboardingComplete: true,
-      },
-    });
-
-    // If organization account, create the first organization
+    let updatedUser: { accountType: string; onboardingComplete: boolean };
     let createdOrgId: string | undefined;
-    if (accountType === "organization" && organizationName) {
+
+    if (accountType === "organization") {
       const { randomUUID } = await import("crypto");
       const apiKey = `vela_${randomUUID().replace(/-/g, "")}`;
-      const newOrg = await prisma.organization.create({
+
+      const result = await prisma.$transaction(async (tx) => {
+        const existingOrg = await tx.organization.findFirst({
+          where: { ownerId: session.user.id },
+          select: { id: true },
+        });
+
+        const user = await tx.user.update({
+          where: { id: session.user.id },
+          data: {
+            accountType: "organization",
+            onboardingComplete: true,
+          },
+          select: {
+            accountType: true,
+            onboardingComplete: true,
+          },
+        });
+
+        if (existingOrg) {
+          return { user, orgId: existingOrg.id };
+        }
+
+        const org = await tx.organization.create({
+          data: {
+            name: organizationName!,
+            contactEmail: contactEmail!,
+            industry: industry || undefined,
+            website: website || undefined,
+            description: description || undefined,
+            agentName: agentName!,
+            agentPersonality: agentPersonality || undefined,
+            apiKey,
+            ownerId: session.user.id,
+          },
+          select: { id: true },
+        });
+        return { user, orgId: org.id };
+      });
+
+      updatedUser = result.user;
+      createdOrgId = result.orgId;
+    } else {
+      updatedUser = await prisma.user.update({
+        where: { id: session.user.id },
         data: {
-          name: organizationName,
-          contactEmail: contactEmail || undefined,
-          industry: industry || undefined,
-          website: website || undefined,
-          description: description || undefined,
-          agentName: agentName || undefined,
-          agentPersonality: agentPersonality || undefined,
-          apiKey,
-          ownerId: session.user.id,
+          accountType: "personal",
+          onboardingComplete: true,
+        },
+        select: {
+          accountType: true,
+          onboardingComplete: true,
         },
       });
-      createdOrgId = newOrg.id;
     }
 
     // Send welcome notification
@@ -69,7 +151,7 @@ export async function POST(req: Request) {
           body:   "Your personal AI is ready. Go to the Train tab to teach it about yourself, then share your public link with the world.",
         },
       }).catch(() => {});
-    } else if (accountType === "organization" && createdOrgId) {
+    } else if (createdOrgId) {
       await prisma.notification.create({
         data: {
           userId:         session.user.id,

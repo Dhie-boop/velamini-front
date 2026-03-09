@@ -1,6 +1,24 @@
 import type { NextAuthConfig } from "next-auth"
 import Google from "next-auth/providers/google"
 
+function normalizeDashboardPath(pathname: string): string {
+  if (pathname === "/dashboard") return "/Dashboard";
+  if (pathname.startsWith("/dashboard/")) {
+    return `/Dashboard/${pathname.slice("/dashboard/".length)}`;
+  }
+  return pathname;
+}
+
+function getSafeCallbackPath(
+  rawCallbackUrl: string | null,
+  fallback: string
+): string {
+  if (!rawCallbackUrl) return fallback;
+  if (!rawCallbackUrl.startsWith("/")) return fallback;
+  if (rawCallbackUrl.startsWith("//")) return fallback;
+  return normalizeDashboardPath(rawCallbackUrl);
+}
+
 export const authConfig: NextAuthConfig = {
   secret: process.env.AUTH_SECRET, // Added this line
   providers: [
@@ -26,6 +44,13 @@ export const authConfig: NextAuthConfig = {
       const isLoggedIn  = !!auth?.user
       const isAdminUser = !!(auth?.user as any)?.isAdminAuth
       const pathname    = nextUrl.pathname
+      const normalizedPathname = normalizeDashboardPath(pathname)
+
+      if (normalizedPathname !== pathname) {
+        const dest = new URL(nextUrl)
+        dest.pathname = normalizedPathname
+        return Response.redirect(dest)
+      }
 
       const isOnAuth       = pathname.startsWith("/auth")
       const isOnAdminLogin = pathname.startsWith("/admin/auth")
@@ -64,7 +89,6 @@ export const authConfig: NextAuthConfig = {
 
       const isOnProtected =
         pathname.startsWith("/Dashboard") ||
-        pathname.startsWith("/dashboard") ||
         pathname.startsWith("/training") ||
         pathname.startsWith("/profile") ||
         pathname.startsWith("/settings")
@@ -76,8 +100,11 @@ export const authConfig: NextAuthConfig = {
 
         if (isLoggedIn) {
           // Preserve ?create=org so authenticated users can still create an organisation
-          const callbackUrl = nextUrl.searchParams.get("callbackUrl") || "/onboarding"
-          const dest = new URL(callbackUrl, nextUrl)
+          const callbackPath = getSafeCallbackPath(
+            nextUrl.searchParams.get("callbackUrl"),
+            "/onboarding"
+          )
+          const dest = new URL(callbackPath, nextUrl)
           // If org creation was requested, pass it through
           if (nextUrl.searchParams.get("create") === "org" && !dest.searchParams.has("create")) {
             dest.searchParams.set("create", "org")

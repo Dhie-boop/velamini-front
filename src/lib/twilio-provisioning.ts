@@ -290,4 +290,3 @@ export async function listAllPhoneNumbers() {
     throw error;
   }
 }
-import { PUBLIC_APP_URL } from "@/lib/app-url";

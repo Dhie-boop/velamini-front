@@ -2,7 +2,14 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
-function isAdminSession(session: Awaited<ReturnType<typeof auth>>): boolean {
+type AdminSessionLike = {
+  user?: {
+    id?: string;
+    isAdminAuth?: boolean;
+  };
+} | null;
+
+function isAdminSession(session: AdminSessionLike): boolean {
   return Boolean(session?.user?.id && (session.user as { isAdminAuth?: boolean }).isAdminAuth);
 }
 

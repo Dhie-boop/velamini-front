@@ -36,7 +36,7 @@ type DeepSeekResponse = {
 };
 
 const chatHistoryItemSchema = z.object({
-  role: z.enum(["system", "user", "assistant", "tool"]).or(z.string().min(1)),
+  role: z.enum(["system", "user", "assistant", "tool"]),
   content: z.string().max(12000),
 });
 

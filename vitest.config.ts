@@ -7,7 +7,6 @@ export default defineConfig({
   test: {
     // API/security tests are server-side; node environment is more stable and faster.
     environment: "node",
-    environmentMatchGlobs: [["src/tests/**/*.dom.test.ts", "jsdom"]],
     globals: true,
     setupFiles: ["./src/tests/setup.ts"],
     // Windows fork pool can hang with larger route imports in this repo.

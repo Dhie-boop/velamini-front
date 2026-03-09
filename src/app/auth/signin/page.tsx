@@ -57,7 +57,11 @@ function FeaturePill({ icon, text, delay }: { icon: string; text: string; delay:
 /* ─── Main sign-in content ──────────────────────────────────────── */
 function SignInContent() {
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams?.get("callbackUrl") || "/onboarding";
+  const rawCallbackUrl = searchParams?.get("callbackUrl");
+  const callbackUrl =
+    rawCallbackUrl && rawCallbackUrl.startsWith("/") && !rawCallbackUrl.startsWith("//")
+      ? rawCallbackUrl
+      : "/onboarding";
   const isBanned = searchParams?.get("error") === "banned";
   const [isDark, setIsDark] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);

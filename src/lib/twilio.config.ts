@@ -292,4 +292,3 @@ export function validateWebhookSignature(
 // ===========================
 
 export default TWILIO_CONFIG;
-import { PUBLIC_APP_URL } from "@/lib/app-url";

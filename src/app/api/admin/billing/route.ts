@@ -4,7 +4,14 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
-function isAdminSession(session: Awaited<ReturnType<typeof auth>>): boolean {
+type AdminSessionLike = {
+  user?: {
+    id?: string;
+    isAdminAuth?: boolean;
+  };
+} | null;
+
+function isAdminSession(session: AdminSessionLike): boolean {
   return Boolean(session?.user?.id && (session.user as { isAdminAuth?: boolean }).isAdminAuth);
 }
 

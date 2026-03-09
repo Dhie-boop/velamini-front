@@ -1,23 +1,49 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { z } from "zod";
+
+const PERSONAL_DOMAINS = new Set([
+  "gmail.com",
+  "yahoo.com",
+  "hotmail.com",
+  "outlook.com",
+  "icloud.com",
+  "live.com",
+  "msn.com",
+  "aol.com",
+  "protonmail.com",
+  "me.com",
+  "ymail.com",
+  "googlemail.com",
+  "mail.com",
+  "inbox.com",
+]);
+
+function isPersonalEmail(email: string): boolean {
+  const domain = email.split("@")[1]?.toLowerCase();
+  return !!domain && PERSONAL_DOMAINS.has(domain);
+}
+
+const registerSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  email: z.string().trim().email(),
+  password: z.string().min(8).max(128),
+});
 
 export async function POST(req: Request) {
   try {
-    const { name, email, password } = await req.json();
-
-    if (!name?.trim() || !email?.trim() || !password) {
+    const parsed = registerSchema.safeParse(await req.json());
+    if (!parsed.success) {
       return NextResponse.json({ error: "Name, email and password are required." }, { status: 400 });
     }
 
-    const normalizedEmail = email.toLowerCase().trim();
-
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
-      return NextResponse.json({ error: "Please enter a valid email address." }, { status: 400 });
-    }
-
-    if (password.length < 8) {
-      return NextResponse.json({ error: "Password must be at least 8 characters." }, { status: 400 });
+    const normalizedEmail = parsed.data.email.toLowerCase().trim();
+    if (isPersonalEmail(normalizedEmail)) {
+      return NextResponse.json(
+        { error: "Organisation accounts require a work/business email address." },
+        { status: 400 }
+      );
     }
 
     const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
@@ -25,11 +51,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "An account with this email already exists." }, { status: 409 });
     }
 
-    const passwordHash = await bcrypt.hash(password, 12);
+    const passwordHash = await bcrypt.hash(parsed.data.password, 12);
 
     await prisma.user.create({
       data: {
-        name: name.trim(),
+        name: parsed.data.name.trim(),
         email: normalizedEmail,
         passwordHash,
         accountType: "organization",
