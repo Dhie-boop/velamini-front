@@ -2,6 +2,8 @@
 // removed Card import to use DaisyUI chat-bubble classes instead
 import { motion, AnimatePresence } from "framer-motion";
 import { User as UserIcon } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 type Message = {
   id: number;
@@ -81,15 +83,22 @@ export default function MessageList({
                     {new Date(msg.id).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
-                <div className="break-words whitespace-pre-wrap leading-relaxed">
+                <div className="break-words leading-relaxed">
                   {isUser ? (
-                    <p>{msg.content}</p>
+                    <p className="whitespace-pre-wrap">{msg.content}</p>
                   ) : (
-                    msg.content.split(/(https?:\/\/[^\s]+)/g).map((part, i) => (
-                      part.match(/(https?:\/\/[^\s]+)/g) ? (
-                        <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-primary underline break-all hover:text-primary-foreground/80">{part}</a>
-                      ) : part
-                    ))
+                    <div className="prose prose-sm max-w-none dark:prose-invert prose-a:text-primary prose-a:no-underline hover:prose-a:underline prose-code:before:content-none prose-code:after:content-none prose-pre:bg-default-100 prose-pre:text-default-800">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          a: ({ href, children }) => (
+                            <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>
+                          ),
+                        }}
+                      >
+                        {msg.content}
+                      </ReactMarkdown>
+                    </div>
                   )}
                 </div>
                 {!isUser && assistantFooterText && (

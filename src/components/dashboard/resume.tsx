@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import DOMPurify from "dompurify";
 import {
   Sparkles, FileText, Download, RefreshCw, Copy, Check,
   ChevronDown, Loader2, Zap, Brain, User, Briefcase,
@@ -91,19 +92,23 @@ function ResumeDocument({
 
   // Detect if the AI returned HTML (starts with a tag or doctype)
   const isHtml = /^\s*(<(!DOCTYPE|html|div|section|article|body|style|head|table|ul|ol|h[1-6]|p|span)\b)/i.test(content);
+  // Sanitize HTML to prevent XSS from AI-generated content
+  const safeHtml = isHtml
+    ? DOMPurify.sanitize(content, { USE_PROFILES: { html: true } })
+    : "";
 
   return (
     <div className={`rv-doc rv-doc--${style}`}>
       {streaming ? (
         isHtml ? (
-          <div className="rv-rendered" dangerouslySetInnerHTML={{ __html: content }} />
+          <div className="rv-rendered" dangerouslySetInnerHTML={{ __html: safeHtml }} />
         ) : (
           <div className="rv-raw-stream">
             <StreamingText text={content} speed={12} />
           </div>
         )
       ) : isHtml ? (
-        <div className="rv-rendered" dangerouslySetInnerHTML={{ __html: content }} />
+        <div className="rv-rendered" dangerouslySetInnerHTML={{ __html: safeHtml }} />
       ) : (
         <div className="rv-rendered">
           {content.split('\n').map((line, i) => {

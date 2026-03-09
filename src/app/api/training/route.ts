@@ -22,10 +22,20 @@ export async function POST(req: Request) {
 
     const body = await req.json();
 
-    // Remove undefined/null fields
-    const data = Object.fromEntries(
-      Object.entries(body).filter(([_, v]) => v !== undefined && v !== null)
-    );
+    // Explicit allowlist of user-editable fields — never pass raw body to Prisma
+    const allowedFields = [
+      "fullName", "birthDate", "birthPlace", "currentLocation", "languages",
+      "bio", "relationshipStatus", "hobbies", "favoriteFood",
+      "education", "experience", "skills", "projects", "awards",
+      "socialLinks", "socialUpdates", "rawContent",
+    ] as const;
+
+    const data: Record<string, unknown> = {};
+    for (const field of allowedFields) {
+      if (body[field] !== undefined && body[field] !== null) {
+        data[field] = body[field];
+      }
+    }
 
     // Upsert knowledge base (update if exists, create if not)
     const knowledgeBase = await prisma.knowledgeBase.upsert({
@@ -40,8 +50,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, knowledgeBase });
   } catch (error: unknown) {
     console.error("training save error:", error);
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ ok: false, error: errorMessage }, { status: 500 });
+    return NextResponse.json({ ok: false, error: "Failed to save training data." }, { status: 500 });
   }
 }
 
@@ -59,7 +68,6 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: true, knowledgeBase });
   } catch (error: unknown) {
     console.error("training fetch error:", error);
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ ok: false, error: errorMessage }, { status: 500 });
+    return NextResponse.json({ ok: false, error: "Failed to fetch training data." }, { status: 500 });
   }
 }

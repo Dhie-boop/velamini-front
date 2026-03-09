@@ -93,11 +93,6 @@ export default function SharedChatPage({ params }: PageProps) {
           virtualSelfIdRef.current = data.userId;
           setVirtualSelfId(data.userId);
           setVirtualSelf({ name: data.name, image: data.image });
-          const qaRes = await fetch(`/api/knowledgebase/qa?userId=${data.userId}`);
-          if (qaRes.ok) {
-            const qd = await qaRes.json();
-            setQaPairs(Array.isArray(qd.qaPairs) ? qd.qaPairs : []);
-          }
         } else throw new Error('Virtual self not found');
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Something went wrong');
@@ -114,18 +109,17 @@ export default function SharedChatPage({ params }: PageProps) {
   const [showFeedback, setShowFeedback] = useState(false);
   const [rating, setRating]             = useState(0);
   const [feedbackText, setFeedbackText] = useState("");
-  const [isDarkMode, setIsDarkMode]     = useState(false);
+  const [isDarkMode, setIsDarkMode]     = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const t = localStorage.getItem('theme');
+    const dark = t === 'dark' || (!t && window.matchMedia?.('(prefers-color-scheme: dark)')?.matches);
+    document.documentElement.setAttribute('data-mode', dark ? 'dark' : 'light');
+    return dark;
+  });
   const [sidebarOpen, setSidebarOpen]   = useState(false);
   const [sessions, setSessions]         = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    const t = localStorage.getItem('theme');
-    const dark = t === 'dark' || (!t && window.matchMedia?.('(prefers-color-scheme: dark)')?.matches);
-    setIsDarkMode(dark);
-    document.documentElement.setAttribute('data-mode', dark ? 'dark' : 'light');
-  }, []);
 
   const toggleTheme = () => {
     const next = !isDarkMode;
@@ -796,6 +790,7 @@ export default function SharedChatPage({ params }: PageProps) {
           isOpen={showFeedback} onClose={() => setShowFeedback(false)}
           rating={rating} setRating={setRating}
           feedbackText={feedbackText} setFeedbackText={setFeedbackText}
+          virtualSelfSlug={slug}
         />
       </div>
     </>

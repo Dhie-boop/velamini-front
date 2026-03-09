@@ -35,21 +35,14 @@ export async function POST(req: Request) {
   }
 }
 
-// GET: Retrieve Q&A pairs for a user (by userId or current user)
+// GET: Retrieve Q&A pairs for the authenticated user only
 export async function GET(req: Request) {
   try {
-    const url = new URL(req.url);
-    const userId = url.searchParams.get("userId");
-    let kb;
-    if (userId) {
-      kb = await prisma.knowledgeBase.findUnique({ where: { userId } });
-    } else {
-      const session = await auth();
-      if (!session?.user?.id) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
-      kb = await prisma.knowledgeBase.findUnique({ where: { userId: session.user.id } });
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const kb = await prisma.knowledgeBase.findUnique({ where: { userId: session.user.id } });
     return NextResponse.json({ qaPairs: kb?.qaPairs || [] });
   } catch (error) {
     console.error("Get Q&A error:", error);

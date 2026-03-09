@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { releasePhoneNumber } from "@/lib/twilio-provisioning";
 
 // GET /api/organizations/[id] - Get single organization
 export async function GET(
@@ -40,7 +41,7 @@ export async function GET(
   } catch (error) {
     console.error("Get organization error:", error);
     return NextResponse.json(
-      { ok: false, error: "Failed to fetch organization" },
+      { ok: false, error: "Failed to fetch organization." },
       { status: 500 }
     );
   }
@@ -75,18 +76,32 @@ export async function PATCH(
 
     const body = await req.json();
     
-    // Remove fields that shouldn't be directly updated
+    // Explicit allowlist of fields an owner may update
+    // Sensitive/system fields (apiKey, planType, monthlyMessageLimit, isActive, etc.) are NOT included
     const {
-      id: bodyId,
-      ownerId,
-      whatsappNumber,
-      whatsappNumberSid,
-      monthlyMessageCount,
-      totalConversations,
-      totalMessages,
-      createdAt,
-      ...updateData
+      name,
+      description,
+      industry,
+      website,
+      contactEmail,
+      welcomeMessage,
+      autoReplyEnabled,
+      businessHoursEnabled,
+      businessHoursStart,
+      businessHoursEnd,
     } = body;
+
+    const updateData: Record<string, unknown> = {};
+    if (name                !== undefined) updateData.name                = name;
+    if (description         !== undefined) updateData.description         = description;
+    if (industry            !== undefined) updateData.industry            = industry;
+    if (website             !== undefined) updateData.website             = website;
+    if (contactEmail        !== undefined) updateData.contactEmail        = contactEmail;
+    if (welcomeMessage      !== undefined) updateData.welcomeMessage      = welcomeMessage;
+    if (autoReplyEnabled    !== undefined) updateData.autoReplyEnabled    = autoReplyEnabled;
+    if (businessHoursEnabled !== undefined) updateData.businessHoursEnabled = businessHoursEnabled;
+    if (businessHoursStart  !== undefined) updateData.businessHoursStart  = businessHoursStart;
+    if (businessHoursEnd    !== undefined) updateData.businessHoursEnd    = businessHoursEnd;
 
     const organization = await prisma.organization.update({
       where: { id },
@@ -97,7 +112,7 @@ export async function PATCH(
   } catch (error) {
     console.error("Update organization error:", error);
     return NextResponse.json(
-      { ok: false, error: "Failed to update organization" },
+      { ok: false, error: "Failed to update organization." },
       { status: 500 }
     );
   }
@@ -130,10 +145,15 @@ export async function DELETE(
       );
     }
 
-    // TODO: Release Twilio number if exists
+    // Release the Twilio phone number before deleting the org
     if (existingOrg.whatsappNumberSid) {
-      // We'll implement this in the Twilio service
-      console.warn("TODO: Release Twilio number:", existingOrg.whatsappNumberSid);
+      try {
+        await releasePhoneNumber(existingOrg.whatsappNumberSid);
+        console.log("Released Twilio number:", existingOrg.whatsappNumberSid);
+      } catch (twilioErr) {
+        // Log but don't block deletion — number may already be released
+        console.error("Failed to release Twilio number (continuing with deletion):", twilioErr);
+      }
     }
 
     await prisma.organization.delete({
@@ -144,7 +164,7 @@ export async function DELETE(
   } catch (error) {
     console.error("Delete organization error:", error);
     return NextResponse.json(
-      { ok: false, error: "Failed to delete organization" },
+      { ok: false, error: "Failed to delete organization." },
       { status: 500 }
     );
   }

@@ -3,12 +3,16 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
 // GET /api/organizations - List all organizations for current user
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const url = new URL(req.url);
+    const take   = Math.min(parseInt(url.searchParams.get("limit") ?? "20"), 100);
+    const cursor = url.searchParams.get("cursor") ?? undefined;
 
     const organizations = await prisma.organization.findMany({
       where: { ownerId: session.user.id },
@@ -22,9 +26,13 @@ export async function GET() {
         },
       },
       orderBy: { createdAt: "desc" },
+      take,
+      ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
     });
 
-    return NextResponse.json({ ok: true, organizations });
+    const nextCursor = organizations.length === take ? organizations[organizations.length - 1].id : null;
+
+    return NextResponse.json({ ok: true, organizations, nextCursor });
   } catch (error) {
     console.error("Get organizations error:", error);
     return NextResponse.json(

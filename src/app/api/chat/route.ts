@@ -36,7 +36,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing message" }, { status: 400 });
     }
 
-    const { message, history = [], useLocalKnowledge = false, systemPrompt: customSystemPrompt } = body;
+    const { message, history = [], useLocalKnowledge = false } = body;
     const apiKey = process.env.DEEPSEEK_API_KEY;
 
     if (!apiKey) {
@@ -132,10 +132,8 @@ export async function POST(req: Request) {
             : "No search results found.";
     }
 
-    // Use custom systemPrompt if provided (e.g., from dashboard chat), else default
-    const systemPrompt = customSystemPrompt
-      ? customSystemPrompt
-      : VIRTUAL_SELF_SYSTEM_PROMPT.replaceAll("[Person's name]", userName) + userKnowledge + velaminiContext;
+    // Use only the server-side system prompt — never accept one from the client
+    const systemPrompt = VIRTUAL_SELF_SYSTEM_PROMPT.replaceAll("[Person's name]", userName) + userKnowledge + velaminiContext;
 
     const tools = [
       {
@@ -181,7 +179,8 @@ export async function POST(req: Request) {
     if (!response.ok) {
        // Error handling...
        const errorData = await response.json().catch(() => ({}));
-       return NextResponse.json({ error: "AI service error", details: errorData }, { status: response.status });
+       console.error("AI service error:", response.status, errorData);
+       return NextResponse.json({ error: "AI service is temporarily unavailable." }, { status: 502 });
     }
 
     const data = (await response.json()) as DeepSeekResponse;
@@ -257,7 +256,8 @@ export async function POST(req: Request) {
     if (process.env.DATABASE_URL) {
       try {
         console.log("Saving chat messages to DB...");
-        const chat = await prisma.chat.findFirst() || await prisma.chat.create({ data: {} });
+        const chat = await prisma.chat.findFirst({ where: { userId: authenticatedUserId ?? "anon" } })
+          || await prisma.chat.create({ data: { userId: authenticatedUserId ?? "anon" } });
         await prisma.message.createMany({
           data: [
             { chatId: chat.id, role: "user", content: message },
@@ -283,7 +283,6 @@ export async function POST(req: Request) {
 
   } catch (error: unknown) {
     console.error("POST /api/chat error:", error);
-    const errorMessage = error instanceof Error ? error.message : "Internal Server Error";
-    return NextResponse.json({ error: errorMessage }, { status: 500 });
+    return NextResponse.json({ error: "An unexpected error occurred." }, { status: 500 });
   }
 }

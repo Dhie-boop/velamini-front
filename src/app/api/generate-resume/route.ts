@@ -1,19 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from '@/lib/prisma';
-// Import fetch if needed (Node 18+ has global fetch)
+import { auth } from "@/auth";
 
 export async function POST(req: NextRequest) {
   try {
+    // Require an authenticated session
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const authenticatedUserId = session.user.id;
+
     const body = await req.text();
-    let userId, template, tone, focus, jobTitle;
+    let template, tone, focus, jobTitle;
     try {
-      ({ userId, template, tone, focus, jobTitle } = JSON.parse(body));
-    } catch (e) {
-      return NextResponse.json({ error: "Malformed JSON in request body", body }, { status: 400 });
+      ({ template, tone, focus, jobTitle } = JSON.parse(body));
+    } catch {
+      return NextResponse.json({ error: "Malformed JSON in request body" }, { status: 400 });
     }
-    if (!userId) {
-      return NextResponse.json({ error: "Missing userId", body }, { status: 400 });
-    }
+    // Always use the authenticated user's ID — never accept userId from the client
+    const userId = authenticatedUserId;
 
 
     // Fetch user profile and their knowledge base
@@ -139,7 +145,7 @@ Write the resume HTML now:`;
     const DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions";
     const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
     if (!DEEPSEEK_API_KEY) {
-      return NextResponse.json({ error: "DeepSeek API key not set" }, { status: 500 });
+      return NextResponse.json({ error: "AI service is not configured." }, { status: 500 });
     }
 
     const deepseekRes = await fetch(DEEPSEEK_API_URL, {
@@ -163,7 +169,7 @@ Write the resume HTML now:`;
     if (!deepseekRes.ok || !deepseekRes.body) {
       const errorBody = await deepseekRes.text();
       console.error("DeepSeek API error:", deepseekRes.status, errorBody);
-      return NextResponse.json({ error: "Failed to generate resume with DeepSeek.", status: deepseekRes.status, errorBody }, { status: 500 });
+      return NextResponse.json({ error: "Failed to generate resume. Please try again." }, { status: 500 });
     }
 
     // Collect the full SSE stream server-side so we can save it to the DB
@@ -211,6 +217,6 @@ Write the resume HTML now:`;
 
   } catch (err) {
     console.error("[generate-resume]", err);
-    return NextResponse.json({ error: "Failed to generate resume." }, { status: 500 });
+    return NextResponse.json({ error: "Failed to generate resume. Please try again." }, { status: 500 });
   }
 }

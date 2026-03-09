@@ -45,6 +45,9 @@ model Message {
 
 model Feedback {
   id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  virtualSelfSlug String?
   rating    Int
   comment   String?  @db.Text
   createdAt DateTime @default(now())
@@ -281,6 +284,7 @@ model User {
   userBillingRecords UserBillingRecord[]
   notifications      Notification[]
   moderationReports  ModerationReport[]
+  feedbacks          Feedback[]
 }
 
 model UserBillingRecord {

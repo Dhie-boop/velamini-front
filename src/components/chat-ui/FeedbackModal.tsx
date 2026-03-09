@@ -11,6 +11,7 @@ interface FeedbackModalProps {
   setRating: (value: number) => void;
   feedbackText: string;
   setFeedbackText: (value: string) => void;
+  virtualSelfSlug?: string;
 }
 
 const EMOJIS = [
@@ -22,7 +23,7 @@ const EMOJIS = [
 ];
 
 export default function FeedbackModal({
-  isOpen, onClose, rating, setRating, feedbackText, setFeedbackText,
+  isOpen, onClose, rating, setRating, feedbackText, setFeedbackText, virtualSelfSlug,
 }: FeedbackModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorStatus, setErrorStatus] = useState<string | null>(null);
@@ -36,7 +37,7 @@ export default function FeedbackModal({
       const response = await fetch("/api/feedback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rating, comment: feedbackText }),
+        body: JSON.stringify({ rating, comment: feedbackText, virtualSelfSlug }),
       });
       if (response.ok) {
         setSubmitted(true);

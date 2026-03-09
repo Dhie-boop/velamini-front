@@ -4,6 +4,7 @@ import { searchWeb } from "@/lib/search";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
 import { VIRTUAL_TRESOR_SYSTEM_PROMPT } from "@/lib/ai-config";
 import { prisma } from "@/lib/prisma";
+import { validateWebhookSignature } from "@/lib/twilio.config";
 
 // Force Node.js runtime for FormData compatibility if needed, 
 // though standard Web API Request/Response works in Edge too.
@@ -33,12 +34,30 @@ type DeepSeekResponse = {
 
 export async function POST(req: Request) {
   try {
+    // Validate Twilio webhook signature to prevent spoofed requests
+    const twilioSignature = req.headers.get("x-twilio-signature") ?? "";
+    const webhookUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/whatsapp/webhook`;
+
+    // Buffer the raw body for both signature validation and form parsing
+    const rawBody = await req.text();
+    const params: Record<string, string> = {};
+    for (const [k, v] of new URLSearchParams(rawBody)) {
+      params[k] = v;
+    }
+
+    if (!validateWebhookSignature(twilioSignature, webhookUrl, params)) {
+      console.warn("Twilio webhook signature validation failed");
+      return new NextResponse("<Response></Response>", {
+        status: 403,
+        headers: { "Content-Type": "text/xml" },
+      });
+    }
+
     // Twilio sends data as application/x-www-form-urlencoded
-    const formData = await req.formData();
-    const from = formData.get("From") as string;
-    const to = formData.get("To") as string; // The number receiving the message
-    const body = formData.get("Body") as string;
-    const numMedia = formData.get("NumMedia") ? parseInt(formData.get("NumMedia") as string) : 0;
+    const from = params["From"] ?? "";
+    const to = params["To"] ?? ""; // The number receiving the message
+    const body = params["Body"] ?? "";
+    const numMedia = params["NumMedia"] ? parseInt(params["NumMedia"]) : 0;
 
     if (!from) {
       console.warn("Invalid Twilio Request: Missing From");
@@ -95,7 +114,12 @@ async function handleIncomingMessage(from: string, to: string, userMessage: stri
         isActive: true,
       },
       include: {
-        knowledgeBase: true,
+        knowledgeBase: {
+          select: {
+            trainedPrompt: true,
+            isModelTrained: true,
+          },
+        },
       },
     });
 
