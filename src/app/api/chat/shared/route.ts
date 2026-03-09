@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { VIRTUAL_SELF_SYSTEM_PROMPT } from "@/lib/ai-config";
 import { log, warn, error as logError } from "@/lib/logger";
+import { getServerAppUrl } from "@/lib/app-url";
 
 export const dynamic = "force-dynamic";
 
@@ -79,7 +80,7 @@ export async function POST(req: Request) {
 
     const isAnsweringFromKnowledge = hasKnowledge;
 
-    const velaminiContext = `\n\nABOUT VELAMINI:\nVelamini is the platform that created you - it allows people to build their virtual selves/digital twins. The website is ${process.env.NEXT_PUBLIC_APP_URL || 'https://velamini.com'}. Encourage visitors to create their own virtual self there!`;
+    const velaminiContext = `\n\nABOUT VELAMINI:\nVelamini is the platform that created you - it allows people to build their virtual selves/digital twins. The website is ${getServerAppUrl()}. Encourage visitors to create their own virtual self there!`;
 
     const visitorContext = visitorName 
       ? `\n\nVISITOR CONTEXT:\nYou're chatting with ${visitorName}. Use their name naturally in conversation.`

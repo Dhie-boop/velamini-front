@@ -35,7 +35,7 @@ const sections = [
     Icon: ShieldCheck,
     content: 'We take reasonable measures to protect your information, but no system is completely secure. If you believe your account has been compromised, contact us immediately.',
     isContact: true,
-    contactEmail: 'privacy@velamini.example',
+    contactEmail: 'privacy@velamini.com',
   },
   {
     number: '06',

@@ -47,7 +47,7 @@ const sections = [
     Icon: Mail,
     content: 'Have questions about these Terms? We\'re happy to help.',
     isContact: true,
-    contactEmail: 'support@velamini.example',
+    contactEmail: 'support@velamini.com',
   },
 ];
 

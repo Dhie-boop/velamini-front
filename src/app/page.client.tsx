@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import Footer from "@/components/footer";
 import { motion, useScroll, useTransform, useInView, AnimatePresence } from "framer-motion";
+import { PUBLIC_APP_URL } from "@/lib/app-url";
 import {
   Brain, Share2, Sparkles, MessageSquare,
   ShieldCheck, Zap, ArrowRight, ArrowUpRight,
@@ -91,8 +92,9 @@ export default function Home() {
   useEffect(() => {
     const key = process.env.NEXT_PUBLIC_EMBED_AGENT_KEY;
     if (!key || document.getElementById("vela-widget")) return;
+    const embedScriptSrc = `${PUBLIC_APP_URL}/embed/agent.js`;
     const s = Object.assign(document.createElement("script"), {
-      src: "https://velamini-front.vercel.app/embed/agent.js", async: true, id: "vela-widget",
+      src: embedScriptSrc, async: true, id: "vela-widget",
     });
     (s as any).dataset.agentKey  = key;
     (s as any).dataset.agentName = process.env.NEXT_PUBLIC_EMBED_AGENT_NAME || "Velamini";
