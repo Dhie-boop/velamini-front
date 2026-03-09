@@ -32,6 +32,13 @@ Thank you for your interest in contributing to Velamini. This document covers ev
 ---
 
 ## Local Setup
+# If you are contributing, please fork the repository first:
+# 1. Go to the GitHub page for Velamini.
+# 2. Click the "Fork" button in the top right.
+# 3. Clone your forked repository:
+#    git clone https://github.com/<your-username>/velamini.git
+# 4. Create a new branch for your changes.
+# 5. After making changes, push to your fork and submit a pull request.
 
 ```bash
 # 1. Clone the repository
