@@ -79,7 +79,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       return true;
     },
 
-    async jwt({ token, user, account }) {
+    async jwt({ token, user, account, trigger }) {
       const jwtToken = token as typeof token & {
         idLookupAt?: number;
         statusCheckedAt?: number;
@@ -99,38 +99,47 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           const lastIdLookupAt =
             typeof jwtToken.idLookupAt === "number" ? jwtToken.idLookupAt : 0;
           const shouldLookupId =
-            !!user || now - lastIdLookupAt >= TOKEN_DB_REFRESH_MS;
+            !!user || trigger === "update" || now - lastIdLookupAt >= TOKEN_DB_REFRESH_MS;
           if (!shouldLookupId) return token;
 
           const dbUser = await prisma.user.findUnique({
             where: { email: token.email },
-            select: { id: true, status: true },
+            select: { id: true, status: true, emailVerified: true, accountType: true, onboardingComplete: true },
           });
           jwtToken.idLookupAt = now;
           if (dbUser) {
             token.id = dbUser.id;
             token.status = dbUser.status;
+            token.emailVerified = dbUser.emailVerified?.toISOString() ?? null;
+            token.accountType = dbUser.accountType;
+            token.onboardingComplete = dbUser.onboardingComplete;
             jwtToken.statusCheckedAt = now;
           }
         } else if (token.id) {
           const lastStatusCheckedAt =
             typeof jwtToken.statusCheckedAt === "number" ? jwtToken.statusCheckedAt : 0;
           const shouldRefreshStatus =
-            !!user || now - lastStatusCheckedAt >= TOKEN_DB_REFRESH_MS;
+            !!user || trigger === "update" || now - lastStatusCheckedAt >= TOKEN_DB_REFRESH_MS;
           if (!shouldRefreshStatus) return token;
 
           // Re-fetch status periodically so bans take effect quickly
           // without hitting the DB on every /session request.
           const dbUser = await prisma.user.findUnique({
             where: { id: token.id as string },
-            select: { status: true },
+            select: { status: true, emailVerified: true, accountType: true, onboardingComplete: true },
           });
           jwtToken.statusCheckedAt = now;
           if (!dbUser) {
             token.id = undefined;
             token.status = undefined;
+            token.emailVerified = undefined;
+            token.accountType = undefined;
+            token.onboardingComplete = undefined;
           } else {
             token.status = dbUser.status;
+            token.emailVerified = dbUser.emailVerified?.toISOString() ?? null;
+            token.accountType = dbUser.accountType;
+            token.onboardingComplete = dbUser.onboardingComplete;
           }
         }
       } catch {
@@ -148,6 +157,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         session.user.isAdminAuth = true;
       }
       session.user.status = token.status as string | undefined;
+      session.user.emailVerified = token.emailVerified as string | null | undefined;
+      session.user.accountType = token.accountType as string | undefined;
+      session.user.onboardingComplete = token.onboardingComplete as boolean | undefined;
       return session;
     },
   },

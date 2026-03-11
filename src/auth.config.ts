@@ -65,15 +65,19 @@ export const authConfig: NextAuthConfig = {
     // Map custom JWT fields into session.user so the middleware's authorized callback
     // can read them. No DB calls here — just pass-through from token.
     async session({ session, token }) {
-      if (token.id)          (session.user as any).id          = token.id;
-      if (token.isAdminAuth) (session.user as any).isAdminAuth = token.isAdminAuth;
-      if (token.status)      (session.user as any).status      = token.status;
+      if (token.id) session.user.id = token.id;
+      if (token.isAdminAuth) session.user.isAdminAuth = token.isAdminAuth;
+      if (token.status) session.user.status = token.status;
+      session.user.emailVerified = token.emailVerified ?? null;
+      session.user.accountType = token.accountType;
+      session.user.onboardingComplete = token.onboardingComplete;
       return session;
     },
 
     async authorized({ auth, request: { nextUrl } }) {
-      const isLoggedIn  = !!auth?.user
-      const isAdminUser = !!(auth?.user as any)?.isAdminAuth
+      const authUser = auth?.user
+      const isLoggedIn  = !!authUser
+      const isAdminUser = !!authUser?.isAdminAuth
       const pathname    = nextUrl.pathname
       const isLoggedOutRedirect = nextUrl.searchParams.get("loggedOut") === "1"
       const normalizedPathname = normalizeDashboardPath(pathname)
@@ -87,14 +91,25 @@ export const authConfig: NextAuthConfig = {
       const isOnAuth       = pathname.startsWith("/auth")
       const isOnAdminLogin = pathname.startsWith("/admin/auth")
       const isOnMaintenance = pathname === "/maintenance"
+      const isOnVerifyEmail = pathname === "/verify-email"
+      const isVerified = !!authUser?.emailVerified
 
       // Maintenance page and admin-auth pages are always accessible
       if (isOnMaintenance) return true
       if (isOnAdminLogin)  return true
+      if (isOnVerifyEmail) {
+        if (!isLoggedIn) {
+          return Response.redirect(new URL("/auth/signin?callbackUrl=/verify-email", nextUrl))
+        }
+        if (isVerified) {
+          return Response.redirect(new URL("/Dashboard", nextUrl))
+        }
+        return true
+      }
 
       // Block banned users from every page (they already can't log in,
       // but this catches anyone banned while already having a valid session)
-      if (!isAdminUser && (auth?.user as any)?.status === "banned") {
+      if (!isAdminUser && authUser?.status === "banned") {
         return Response.redirect(new URL("/auth/signin?error=banned", nextUrl))
       }
 
@@ -145,7 +160,15 @@ export const authConfig: NextAuthConfig = {
       if (isPublicRoute) return true
 
       if (isOnProtected) {
-        if (isLoggedIn) return true
+        if (isLoggedIn) {
+          if (!isAdminUser && !isVerified) {
+            const dest = new URL("/verify-email", nextUrl)
+            const nextValue = pathname + nextUrl.search
+            if (nextValue.startsWith("/")) dest.searchParams.set("next", nextValue)
+            return Response.redirect(dest)
+          }
+          return true
+        }
         return Response.redirect(
           new URL(`/auth/signin?callbackUrl=${encodeURIComponent(pathname)}`, nextUrl)
         )
