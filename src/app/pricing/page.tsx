@@ -19,7 +19,7 @@ export const PERSONAL_PLANS = [
     Icon: Zap,
     color: "#34D399",
     tagline: "Explore the platform",
-    badge: null,
+    badge: "Free",
     features: [
       { t: "200 messages / month",          ok: true  },
       { t: "1 personal AI agent",           ok: true  },
@@ -31,7 +31,7 @@ export const PERSONAL_PLANS = [
     ],
     cta: "Start Free",
     ctaHref: "/onboarding/personal",
-    highlight: false,
+    highlight: true,
   },
   {
     id: "personal-plus",
@@ -66,7 +66,7 @@ export const ORG_PLANS = [
     Icon: Zap,
     color: "#34D399",
     tagline: "Test the waters",
-    badge: null,
+    badge: "Free",
     features: [
       { t: "500 messages / month",          ok: true  },
       { t: "1 AI agent",                    ok: true  },
@@ -76,7 +76,7 @@ export const ORG_PLANS = [
     ],
     cta: "Get Started Free",
     ctaHref: "/onboarding/org",
-    highlight: false,
+    highlight: true,
   },
   {
     id: "starter",
@@ -86,7 +86,7 @@ export const ORG_PLANS = [
     Icon: TrendingUp,
     color: "#38AECC",
     tagline: "For small businesses",
-    badge: null,
+    badge: "Recommended",
     features: [
       { t: "2,000 messages / month",        ok: true },
       { t: "2M AI tokens / month",          ok: true },
@@ -97,7 +97,7 @@ export const ORG_PLANS = [
     ],
     cta: "Upgrade to Starter",
     ctaHref: "/onboarding/org?plan=starter",
-    highlight: false,
+    highlight: true,
   },
   {
     id: "pro",
@@ -142,7 +142,7 @@ export const ORG_PLANS = [
     ],
     cta: "Upgrade to Scale",
     ctaHref: "/onboarding/org?plan=scale",
-    highlight: false,
+    highlight: true,
   },
 ] as const;
 
@@ -199,7 +199,7 @@ function PlanCard({ plan, period }: { plan: typeof ORG_PLANS[number] | typeof PE
   return (
     <div className={`pc${hi ? " pc--hi" : ""}`} style={{ ["--col" as any]: plan.color }}>
       {/* top accent line */}
-      <div className="pc-line" style={{ background: hi ? plan.color : "transparent" }}/>
+      <div className="pc-line"/>
 
       {plan.badge && (
         <div className="pc-bdg" style={{ background: plan.color }}>
@@ -304,7 +304,7 @@ export default function PricingPage() {
           --br2:      #D6ECFA;
           --fg:       #091828;
           --fg2:      #1C3A52;
-          --mu:       #527A96;
+          --mu:       #2E4A5E;
           --ac:       #29A9D4;
           --ac2:      #1B90B8;
           --org:      #6366F1;
@@ -470,7 +470,7 @@ export default function PricingPage() {
           position:relative;
           /* Solid opaque dark card so text is always legible */
           background:#0D1E2E;
-          border:1px solid #1A3448;
+          border:1px solid color-mix(in srgb,var(--col) 15%,#1A3448);
           border-radius:22px;
           padding:0 0 20px;
           display:flex;flex-direction:column;
@@ -511,7 +511,11 @@ export default function PricingPage() {
         }
 
         /* top accent bar */
-        .pc-line{height:3px;width:100%;}
+        .pc-line{
+          height:3px;width:100%;
+          background:color-mix(in srgb,var(--col) 40%,transparent);
+        }
+        .pc--hi .pc-line{background:var(--col);}
 
         /* badge */
         .pc-bdg{
@@ -595,27 +599,27 @@ export default function PricingPage() {
         .pc-cta{
           display:flex;align-items:center;justify-content:center;gap:7px;
           margin:0 20px;padding:12px;border-radius:13px;
-          border:1.5px solid #1E3C58;
+          border:1.5px solid color-mix(in srgb,var(--col) 55%,#1E3C58);
           font-size:.8rem;font-weight:700;text-decoration:none;
-          color:#8BBAD6;
-          background:rgba(56,174,204,.07);
+          color:var(--col);
+          background:color-mix(in srgb,var(--col) 24%,transparent);
           transition:all .18s;
         }
         .pc-cta:hover{
           border-color:var(--col);
-          background:color-mix(in srgb,var(--col) 14%,transparent);
+          background:color-mix(in srgb,var(--col) 18%,transparent);
           color:var(--col);
           transform:translateY(-1px);
         }
         /* Ghost — light mode */
         [data-mode="light"] .pc-cta{
-          border-color:#C8DDEF;
-          color:#1C3A52;
-          background:rgba(41,169,212,.05);
+          border-color:color-mix(in srgb,var(--col) 50%,#C8DDEF);
+          color:var(--col);
+          background:color-mix(in srgb,var(--col) 10%,transparent);
         }
         [data-mode="light"] .pc-cta:hover{
           border-color:var(--col);
-          background:color-mix(in srgb,var(--col) 10%,transparent);
+          background:color-mix(in srgb,var(--col) 12%,transparent);
           color:var(--col);
         }
         /* Highlighted CTA — always solid accent colour */

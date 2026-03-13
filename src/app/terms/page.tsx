@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Moon, Sun, FileText, CheckCircle, UserCheck, Database, XCircle, RefreshCw, Mail } from 'lucide-react';
+import { Moon, Sun, FileText, CheckCircle, UserCheck, Database, Settings, ShieldCheck, Scale, XCircle, RefreshCw, Mail } from 'lucide-react';
 
 const sections = [
   {
@@ -25,24 +25,66 @@ const sections = [
   },
   {
     number: '04',
-    title: 'Content',
+    title: 'AI Content & Data Usage',
     Icon: Database,
-    content: 'You retain ownership of the content you submit. By submitting content you grant Velamini a license to use it as needed to provide the Service.',
+    content: 'By using our AI agents, you acknowledge that conversations and data may be used to improve our AI models. We do not sell your personal data, but aggregated insights may be used for service improvement.',
   },
   {
     number: '05',
-    title: 'Termination',
-    Icon: XCircle,
-    content: 'We may suspend or terminate accounts for violations of these Terms or for other reasons permitted by law.',
+    title: 'Subscription & Billing',
+    Icon: RefreshCw,
+    content: 'Paid plans are billed monthly/annually in advance. You can upgrade, downgrade, or cancel anytime. Refunds are provided within 30 days for unused services. Payment processing is handled by Flutterwave.',
   },
   {
     number: '06',
-    title: 'Changes',
-    Icon: RefreshCw,
-    content: 'We may update these Terms from time to time. Changes will be posted on this page with an updated effective date.',
+    title: 'API Usage & Limits',
+    Icon: Settings,
+    content: 'API access is subject to rate limits and fair usage policies. Excessive usage may result in throttling or suspension. API keys must be kept secure and not shared publicly.',
   },
   {
     number: '07',
+    title: 'Content Ownership',
+    Icon: Database,
+    content: 'You retain ownership of the content you submit. By submitting content you grant Velamini a license to use it as needed to provide the Service. AI-generated responses are provided as-is.',
+  },
+  {
+    number: '08',
+    title: 'Data Retention & Deletion',
+    Icon: XCircle,
+    content: 'We retain your data as long as your account is active. Upon account deletion, data is permanently removed within 30 days, except where required by law.',
+  },
+  {
+    number: '09',
+    title: 'Limitation of Liability',
+    Icon: ShieldCheck,
+    content: 'Velamini is provided "as is" without warranties. We are not liable for indirect damages, lost profits, or business interruption. Our total liability is limited to the amount paid in the past 12 months.',
+  },
+  {
+    number: '10',
+    title: 'Termination',
+    Icon: XCircle,
+    content: 'We may suspend or terminate accounts for violations of these Terms or for other reasons permitted by law. You may delete your account at any time.',
+  },
+  {
+    number: '11',
+    title: 'Dispute Resolution',
+    Icon: Scale,
+    content: 'Disputes will be resolved through binding arbitration in Rwanda. Before arbitration, we encourage contacting support for resolution.',
+  },
+  {
+    number: '12',
+    title: 'Governing Law',
+    Icon: FileText,
+    content: 'These Terms are governed by the laws of Rwanda. Any legal proceedings must be brought in Rwandan courts.',
+  },
+  {
+    number: '13',
+    title: 'Changes',
+    Icon: RefreshCw,
+    content: 'We may update these Terms from time to time. Changes will be posted on this page with an updated effective date. Continued use constitutes acceptance.',
+  },
+  {
+    number: '14',
     title: 'Contact',
     Icon: Mail,
     content: 'Have questions about these Terms? We\'re happy to help.',
