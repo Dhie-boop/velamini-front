@@ -2,46 +2,82 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Moon, Sun, Info, ScanLine, Settings, Cookie, ShieldCheck, Scale, Mail } from 'lucide-react';
+import { Moon, Sun, Info, ScanLine, Settings, Cookie, ShieldCheck, Scale, Database, Mail } from 'lucide-react';
 
 const sections = [
   {
     number: '01',
     title: 'Overview',
     Icon: Info,
-    content: 'This Privacy Policy explains how Velamini collects, uses, and discloses personal information when you use our Service.',
+    content: 'This Privacy Policy explains how Velamini collects, uses, and discloses personal information when you use our AI agent platform for African businesses.',
   },
   {
     number: '02',
     title: 'Information We Collect',
     Icon: ScanLine,
-    content: 'We collect information you provide (account details, profile information) and non-personal usage data (analytics, logs). We may also collect data from third-party providers when you sign in with them.',
+    content: 'We collect account information, profile data, conversation history, usage analytics, and payment information. For AI training, we may collect anonymized conversation data. Third-party data comes from Google OAuth, Flutterwave payments, and Twilio integrations.',
   },
   {
     number: '03',
-    title: 'How We Use Information',
+    title: 'AI Data Processing',
     Icon: Settings,
-    content: 'We use information to provide, maintain, and improve the Service; to personalize your experience; and to communicate with you.',
+    content: 'Your conversations with AI agents may be used to improve our models. We use DeepSeek AI for responses. Data is anonymized and aggregated before any model training. You can opt out of data usage for AI improvement.',
   },
   {
     number: '04',
-    title: 'Cookies & Tracking',
-    Icon: Cookie,
-    content: 'We use cookies and similar technologies for authentication, analytics, and preferences. You can control cookie settings through your browser.',
+    title: 'How We Use Information',
+    Icon: Settings,
+    content: 'We use data to provide AI agent services, process payments, send notifications, improve our platform, and comply with legal obligations. We never sell personal data to third parties.',
   },
   {
     number: '05',
-    title: 'Data Security',
+    title: 'Data Sharing & Third Parties',
     Icon: ShieldCheck,
-    content: 'We take reasonable measures to protect your information, but no system is completely secure. If you believe your account has been compromised, contact us immediately.',
-    isContact: true,
-    contactEmail: 'privacy@velamini.com',
+    content: 'We share data with payment processors (Flutterwave), AI providers (DeepSeek), and communication services (Twilio). All third parties are GDPR-compliant and sign data processing agreements.',
   },
   {
     number: '06',
+    title: 'Data Residency & International Transfers',
+    Icon: Scale,
+    content: 'Your data is primarily stored in secure data centers. For optimal performance, some data may be processed in the EU or US. We ensure all transfers comply with African data protection laws.',
+  },
+  {
+    number: '07',
+    title: 'Data Retention',
+    Icon: Database,
+    content: 'Account data is retained while your account is active. Conversation history is kept for 7 days on free plans, unlimited on paid plans. Payment data follows financial regulations. Deleted accounts have data removed within 30 days.',
+  },
+  {
+    number: '08',
+    title: 'Cookies & Tracking',
+    Icon: Cookie,
+    content: 'We use essential cookies for authentication and security. Analytics cookies help us improve the service. Marketing cookies are optional. You can control preferences in your browser or account settings.',
+  },
+  {
+    number: '09',
+    title: 'Data Security',
+    Icon: ShieldCheck,
+    content: 'We use industry-standard encryption, secure APIs, and regular security audits. API keys are hashed and never stored in plain text. Despite our efforts, no system is 100% secure.',
+  },
+  {
+    number: '10',
+    title: 'Children\'s Privacy',
+    Icon: Scale,
+    content: 'Our service is intended for business use by adults 18+. We do not knowingly collect data from children under 13. If we discover such data, it will be immediately deleted.',
+  },
+  {
+    number: '11',
     title: 'Your Rights',
     Icon: Scale,
-    content: 'Depending on your jurisdiction, you may have rights to access, correct, or delete your personal information. Contact us to exercise those rights.',
+    content: 'You have rights to access, correct, delete, or export your data. You can opt out of marketing communications and data processing for AI improvement. Contact us to exercise these rights.',
+  },
+  {
+    number: '12',
+    title: 'Contact & Data Protection Officer',
+    Icon: Mail,
+    content: 'For privacy inquiries, contact our Data Protection Officer. We respond to all requests within 30 days.',
+    isContact: true,
+    contactEmail: 'privacy@velamini.com',
   },
 ];
 

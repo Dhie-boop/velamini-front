@@ -23,6 +23,7 @@ export function applyTheme(isDark: boolean) {
     const r = document.documentElement;
     r.classList.toggle("dark", isDark);
     r.setAttribute("data-theme", isDark ? "dark" : "light");
+    r.setAttribute("data-mode",  isDark ? "dark" : "light");
     localStorage.setItem("theme", isDark ? "dark" : "light");
 
     r.style.setProperty("--bg",            isDark ? "#0a0f14" : "#f0f8ff");

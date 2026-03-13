@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import { MessageSquare, Mail, ArrowUpRight, Zap, Globe } from "lucide-react";
 
 /* ── Footer data ─────────────────────────────────────────────────── */
@@ -53,6 +54,41 @@ const SOCIAL = [
 
 /* ── Footer component ────────────────────────────────────────────── */
 export default function Footer() {
+  const [locale, setLocale] = useState("EN");
+  const [currency, setCurrency] = useState("RWF");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    try {
+      const savedLocale = localStorage.getItem("velamini_locale");
+      const savedCurrency = localStorage.getItem("velamini_currency");
+      if (savedLocale) setLocale(savedLocale);
+      if (savedCurrency) setCurrency(savedCurrency);
+    } catch (_) {}
+  }, []);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, [menuOpen]);
+
+  const setLocaleAndSave = (value: string) => {
+    setLocale(value);
+    try { localStorage.setItem("velamini_locale", value); } catch (_) {}
+  };
+
+  const setCurrencyAndSave = (value: string) => {
+    setCurrency(value);
+    try { localStorage.setItem("velamini_currency", value); } catch (_) {}
+  };
+
   return (
     <>
       <style>{`
@@ -257,6 +293,10 @@ export default function Footer() {
         .vf-copy-sep{width:3px;height:3px;border-radius:50%;background:#2A4D68;flex-shrink:0}
         [data-mode="light"] .vf-copy-sep{background:#BDD9F0}
         .vf-copy-love{color:#EC4899}
+        .vf-copy-link{
+          color:#38AECC;text-decoration:underline;
+        }
+        [data-mode="light"] .vf-copy-link{color:#29A9D4}
         .vf-copy-loc{
           display:inline-flex;align-items:center;gap:4px;
           font-family:'Geist Mono',monospace;font-size:.68rem;color:#2A4D68;
@@ -273,6 +313,7 @@ export default function Footer() {
         [data-mode="light"] .vf-bot-link:hover{color:#29A9D4}
 
         /* ── Language / region selector ─────────────────────────── */
+        .vf-region-wrap{position:relative}
         .vf-region{
           display:flex;align-items:center;gap:6px;
           font-size:.72rem;color:#3D6880;font-family:'Geist Mono',monospace;
@@ -284,6 +325,35 @@ export default function Footer() {
         [data-mode="light"] .vf-region{background:rgba(0,0,0,.03);border-color:#C8DDEF;color:#527A96}
         .vf-region:hover{border-color:rgba(56,174,204,.35);color:#38AECC}
         [data-mode="light"] .vf-region:hover{color:#29A9D4}
+
+        .vf-region-menu{
+          position:absolute;right:0;top:calc(100% + 8px);
+          width:210px;padding:12px;
+          border-radius:14px;
+          background:rgba(8,17,28,.96);
+          border:1px solid rgba(255,255,255,.14);
+          box-shadow:0 18px 40px rgba(0,0,0,.35);
+          z-index:10;
+        }
+        [data-mode="light"] .vf-region-menu{
+          background:rgba(255,255,255,.95);
+          border-color:rgba(21,83,132,.12);
+          box-shadow:0 18px 40px rgba(10,50,90,.14);
+        }
+        .vf-region-menu h4{
+          font-size:.68rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+          margin:0 0 8px;color:#8BBAD6;
+        }
+        [data-mode="light"] .vf-region-menu h4{color:#5A8AA8}
+        .vf-region-option{
+          display:flex;align-items:center;justify-content:space-between;
+          padding:8px 10px;border-radius:10px;
+          cursor:pointer;transition:background .13s;
+        }
+        .vf-region-option:hover{background:rgba(56,174,204,.12)}
+        [data-mode="light"] .vf-region-option:hover{background:rgba(41,169,212,.1)}
+        .vf-region-option--active{font-weight:700;color:#38AECC}
+        [data-mode="light"] .vf-region-option--active{color:#29A9D4}
       `}</style>
 
       <footer className="vf">
@@ -371,6 +441,9 @@ export default function Footer() {
             <div className="vf-copy">
               <span>© 2026 Velamini.</span>
               <span className="vf-copy-sep"/>
+              <span>
+                developed by <a href="https://www.coodic.org/" target="_blank" rel="noopener noreferrer" className="vf-copy-link">Coodic</a>
+              </span>
               <span>coodic <span className="vf-copy-love">made</span> it</span>
               <span className="vf-copy-sep"/>
               <span className="vf-copy-loc">
@@ -384,6 +457,47 @@ export default function Footer() {
               <a href="/privacy" className="vf-bot-link">Privacy</a>
               <a href="/cookies" className="vf-bot-link">Cookies</a>
               <a href="/security" className="vf-bot-link">Security</a>
+              <div className="vf-region-wrap" ref={menuRef}>
+                <button className="vf-region" onClick={() => setMenuOpen(p => !p)}>
+                  <Globe size={11}/> {locale} · {currency}
+                </button>
+
+                {menuOpen && (
+                  <div className="vf-region-menu" role="menu">
+                    <h4>Language</h4>
+                    {[
+                      { label: "English", value: "EN" },
+                      { label: "Kinyarwanda", value: "RW" },
+                    ].map(opt => (
+                      <div
+                        key={opt.value}
+                        role="menuitem"
+                        className={`vf-region-option${locale === opt.value ? " vf-region-option--active" : ""}`}
+                        onClick={() => { setLocaleAndSave(opt.value); setMenuOpen(false); }}
+                      >
+                        <span>{opt.label}</span>
+                        {locale === opt.value && <span>✓</span>}
+                      </div>
+                    ))}
+
+                    <h4 style={{ marginTop: 12 }}>Currency</h4>
+                    {[
+                      { label: "RWF", value: "RWF" },
+                      { label: "USD", value: "USD" },
+                    ].map(opt => (
+                      <div
+                        key={opt.value}
+                        role="menuitem"
+                        className={`vf-region-option${currency === opt.value ? " vf-region-option--active" : ""}`}
+                        onClick={() => { setCurrencyAndSave(opt.value); setMenuOpen(false); }}
+                      >
+                        <span>{opt.label}</span>
+                        {currency === opt.value && <span>✓</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
               <button className="vf-region">
                 <Globe size={11}/> EN 
               </button>

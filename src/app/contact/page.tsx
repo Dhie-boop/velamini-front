@@ -456,7 +456,7 @@ export default function ContactPage() {
               {[
                 { Icon:MapPin, color:"#38AECC", label:"Address",   val:"Kigali Innovation City\nKigali, Rwanda" },
                 { Icon:Mail,   color:"#818CF8", label:"Email",     val:"support@velamini.com" },
-                { Icon:Phone,  color:"#34D399", label:"WhatsApp",  val:"+250 78X XXX XXX" },
+                { Icon:Phone,  color:"#34D399", label:"WhatsApp",  val:"+250 783 897 863" },
               ].map(({ Icon, color, label, val }) => (
                 <div key={label} className="coffice-row">
                   <div className="coffice-ic" style={{ background:`${color}18` }}>

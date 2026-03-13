@@ -24,15 +24,15 @@ function AnimNum({ target, suffix = "" }: { target: number; suffix?: string }) {
 
 const TEAM = [
   {
-    name: "Mugisha Emmanuel",
+    name: "ISHIMWE Tresor Berthrand",
     role: "Co-founder & CEO",
-    bio: "Former software engineer at a Kigali fintech. Obsessed with making AI accessible to every African business owner.",
+    bio: "Former software engineer at Coodic. Obsessed with making AI accessible to every African business owner.",
     initials: "ME",
     color: "#38AECC",
     location: "Kigali, Rwanda",
   },
   {
-    name: "Uwera Clarisse",
+    name: "Jules ",
     role: "Co-founder & CTO",
     bio: "Built distributed systems for 6 years before pivoting to AI infrastructure. Leads all things technical at Velamini.",
     initials: "UC",
@@ -40,7 +40,7 @@ const TEAM = [
     location: "Kigali, Rwanda",
   },
   {
-    name: "Nkurunziza Alain",
+    name: "BUGINGO Christian",
     role: "Head of Product",
     bio: "Product thinker with a background in UX research across East Africa. Champions the voice of our customers.",
     initials: "NA",
@@ -85,12 +85,10 @@ const VALUES = [
 ];
 
 const MILESTONES = [
-  { year: "2023", event: "Velamini founded in Kigali by two engineers tired of seeing African businesses miss customer messages overnight." },
-  { year: "Q1 2024", event: "First 50 organisations onboarded. First MTN MoMo integration live. First agent deployed for a Kigali restaurant." },
-  { year: "Q2 2024", event: "Personal accounts launched. Resume builder and AI assistant features ship to 500+ individual users." },
-  { year: "Q3 2024", event: "Data Insights feature launched. Organisations can upload sales data and get AI-powered business analysis." },
-  { year: "Q4 2024", event: "Crossed 1,000 active organisations. Expanded to Kenya and Nigeria. Analytics dashboard redesigned." },
-  { year: "2025", event: "Series A fundraising. Expanding the team. Building the next generation of agent capabilities." },
+  { year: "2026", event: "Velamini founded in Kigali by two engineers tired of seeing African businesses miss customer messages overnight." },
+  { year: "January 2026", event: "First 50 organisations onboarded. First MTN MoMo integration live. First agent deployed for a Kigali restaurant." },
+  { year: "February 2026", event: "Personal accounts launched. Resume builder and AI assistant features ship to 500+ individual users." },
+  { year: "March 2026", event: "Data Insights feature launched. Organisations can upload sales data and get AI-powered business analysis." },
 ];
 
 export default function AboutPage() {
@@ -345,7 +343,7 @@ export default function AboutPage() {
           </p>
           <span className="ah-loc">
             <MapPin size={12} style={{ color:"var(--ac)" }}/>
-            Kigali Innovation City, Rwanda · Founded 2023
+            Kigali Innovation City, Rwanda · Founded 2026
           </span>
         </section>
 
