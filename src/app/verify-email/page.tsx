@@ -102,7 +102,7 @@ function VerifyEmailPageInner() {
       setPageState("success");
       redirectingRef.current = true;
       await update();
-      window.setTimeout(() => router.replace(nextPath), 1500);
+      window.setTimeout(() => router.replace("/auth/signin"), 1500);
     } catch {
       setErrorMsg("Network error. Please try again.");
       setPageState("waiting");
@@ -126,9 +126,9 @@ function VerifyEmailPageInner() {
     if (status !== "authenticated") return;
     if (session?.user?.emailVerified) {
       redirectingRef.current = true;
-      router.replace(nextPath);
+      router.replace("/auth/signin");
     }
-  }, [nextPath, router, session?.user?.emailVerified, status]);
+  }, [router, session?.user?.emailVerified, status]);
 
   /* ── Auto-send OTP once on mount ───────────────────────────── */
   useEffect(() => {
