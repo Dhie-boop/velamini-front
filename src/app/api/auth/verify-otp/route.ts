@@ -86,6 +86,9 @@ export async function POST(req: Request) {
       }),
     ]);
 
+    // The client will perform a session update on success.
+    // We omit `updateSession()` here due to a NextAuth v5 beta bug.
+
     void sendWelcomeEmail({
       to: user.email,
       name: user.name || "there",

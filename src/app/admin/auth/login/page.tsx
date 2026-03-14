@@ -2,7 +2,7 @@
 
 import { signIn, useSession } from "@/lib/auth-client";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useRef, useState, Suspense } from "react";
 import { ShieldCheck, Eye, EyeOff, Lock, Mail, AlertCircle, Moon, Sun, CheckCircle2 } from "lucide-react";
 import { motion } from "framer-motion";
 import Link from "next/link";
@@ -39,21 +39,21 @@ function AdminLoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error,        setError]        = useState("");
   const [loading,      setLoading]      = useState(false);
-  const [isDark,       setIsDark]       = useState(true);
-  const [mounted,      setMounted]      = useState(false);
+  const [isDark,       setIsDark]       = useState(() => {
+    if (typeof window === "undefined") return true;
+    try { return (localStorage.getItem("theme") || "dark") === "dark"; } catch { return true; }
+  });
+  const mounted = typeof window !== "undefined";
+  const redirectedRef = useRef(false);
 
   useEffect(() => {
-    setMounted(true);
-    try {
-      const stored = localStorage.getItem("theme") || "dark";
-      const dark   = stored === "dark";
-      setIsDark(dark);
-      document.documentElement.setAttribute("data-mode", dark ? "dark" : "light");
-    } catch {}
-  }, []);
+    document.documentElement.setAttribute("data-mode", isDark ? "dark" : "light");
+  }, [isDark]);
 
   useEffect(() => {
-    if (status === "authenticated" && (session?.user as any)?.isAdminAuth) {
+    const user = session?.user as { isAdminAuth?: boolean } | undefined;
+    if (status === "authenticated" && user?.isAdminAuth && !redirectedRef.current) {
+      redirectedRef.current = true;
       router.replace("/admin");
     }
   }, [session, status, router]);
@@ -73,7 +73,7 @@ function AdminLoginPage() {
     });
     setLoading(false);
     if (result?.error) setError("Invalid credentials. Access denied.");
-    else router.replace("/admin");
+    // On success: wait for session to update — the useEffect above will redirect
   };
 
   if (status === "loading") {

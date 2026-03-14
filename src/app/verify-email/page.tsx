@@ -11,9 +11,10 @@ import {
 
 type PageState = "sending" | "waiting" | "verifying" | "success" | "error";
 
-function sanitizeNext(raw: string | null) {
-  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/Dashboard";
-  return raw;
+function getDashboardUrl(type: string | null, fallback = "/Dashboard") {
+  if (type === "organization") return "/Dashboard/organizations";
+  if (type === "personal") return "/Dashboard";
+  return fallback;
 }
 
 /* ─────────────────────────────────────────────────────────────────
@@ -25,10 +26,11 @@ function VerifyEmailPageInner() {
   const searchParams = useSearchParams();
   const { data: session, status, update } = useSession();
 
-  const nextPath = useMemo(
-    () => sanitizeNext(searchParams.get("next")),
-    [searchParams],
-  );
+  const typeParam = searchParams.get("type");
+  const nextPath = useMemo(() => {
+    // Rely on URL type param first, fallback to session accountType
+    return getDashboardUrl(typeParam || (session?.user?.accountType as string | null));
+  }, [typeParam, session?.user?.accountType]);
 
   const [pageState,    setPageState]    = useState<PageState>("sending");
   const [otp,          setOtp]          = useState(["", "", "", "", "", ""]);
@@ -53,8 +55,11 @@ function VerifyEmailPageInner() {
       if (data.alreadyVerified) {
         redirectingRef.current = true;
         setPageState("success");
-        await update();
-        window.setTimeout(() => router.replace(nextPath), 300);
+        // Pass a payload to force NextAuth to actually POST to /api/auth/session
+        await update({ _force: Date.now() });
+        // Hard navigation required — soft nav (router.replace) reuses the
+        // stale in-memory session; the browser must send the fresh JWT cookie.
+        window.setTimeout(() => { window.location.href = nextPath; }, 300);
         return;
       }
 
@@ -101,8 +106,11 @@ function VerifyEmailPageInner() {
 
       setPageState("success");
       redirectingRef.current = true;
-      await update();
-      window.setTimeout(() => router.replace("/auth/signin"), 1500);
+      // Pass a payload to force NextAuth to actually POST to /api/auth/session
+      await update({ _force: Date.now() });
+      // Hard navigation required — soft nav reuses stale in-memory session;
+      // the browser must reload so the middleware reads the fresh JWT cookie.
+      window.setTimeout(() => { window.location.href = nextPath; }, 1500);
     } catch {
       setErrorMsg("Network error. Please try again.");
       setPageState("waiting");
@@ -113,22 +121,22 @@ function VerifyEmailPageInner() {
   useEffect(() => {
     if (status === "unauthenticated") {
       redirectingRef.current = true;
+      const pType = typeParam ? `?type=${typeParam}` : "";
       router.replace(
-        `/auth/signin?callbackUrl=${encodeURIComponent(
-          `/verify-email?next=${encodeURIComponent(nextPath)}`,
-        )}`,
+        `/auth/signin?callbackUrl=${encodeURIComponent(`/verify-email${pType}`)}`
       );
     }
-  }, [nextPath, router, status]);
+  }, [typeParam, router, status]);
 
   /* ── Redirect if already verified ──────────────────────────── */
   useEffect(() => {
     if (status !== "authenticated") return;
     if (session?.user?.emailVerified) {
       redirectingRef.current = true;
-      router.replace("/auth/signin");
+      // Hard navigation so the middleware reads the updated JWT cookie.
+      window.location.href = nextPath;
     }
-  }, [router, session?.user?.emailVerified, status]);
+  }, [nextPath, router, session?.user?.emailVerified, status]);
 
   /* ── Auto-send OTP once on mount ───────────────────────────── */
   useEffect(() => {

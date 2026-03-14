@@ -2,11 +2,11 @@
 
 import { signIn } from "@/lib/auth-client";
 import { useSearchParams } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import Link from "next/link";
+import Image from "next/image";
 import { Suspense, useEffect, useState } from "react";
 import { ArrowRight, Eye, EyeOff, Moon, Sun } from "lucide-react";
-import Navbar from "@/components/Navbar";
 
 /* ─── Animated mesh background ─────────────────────────────────── */
 function MeshBackground() {
@@ -81,7 +81,6 @@ function SignInContent() {
       const stored = localStorage.getItem("theme");
       const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)")?.matches;
       const dark = stored === "dark" || (!stored && prefersDark);
-      setIsDark(dark);
       document.documentElement.setAttribute("data-mode", dark ? "dark" : "light");
     } catch {}
   }, []);
@@ -109,13 +108,13 @@ function SignInContent() {
     }
 
     setCredentialsLoading(true);
-    const result = await signIn("user-credentials", {
+    const result = await signIn("credentials", {
       email: email.toLowerCase().trim(),
       password,
       callbackUrl:
         rawCallbackUrl && rawCallbackUrl.startsWith("/") && !rawCallbackUrl.startsWith("//")
           ? rawCallbackUrl
-          : "/onboarding",
+          : "/Dashboard",
       redirect: false,
     });
     setCredentialsLoading(false);
@@ -124,14 +123,13 @@ function SignInContent() {
       setCredentialsError("Invalid email or password.");
     } else if (result?.url) {
       window.location.href = result.url;
+    } else {
+      // Unexpected: no error but also no url — navigate to fallback
+      window.location.href = callbackUrl;
     }
   };
 
-  const handleOrgSignIn = () => {
-    try { localStorage.setItem("ob_account_type", "organization"); } catch {}
-    setIsSigningIn(true);
-    signIn("google", { callbackUrl: "/onboarding?create=org" });
-  };
+
 
   return (
     <>
@@ -491,7 +489,7 @@ function SignInContent() {
         <nav className="si-nav">
           <Link href="/" className="si-nav-brand">
             <div className="si-nav-logo">
-              <img src="/logo.png" alt="Velamini" />
+              <Image src="/logo.png" alt="Velamini" width={32} height={32} />
             </div>
             <span className="si-nav-name">Velamini</span>
           </Link>
@@ -511,11 +509,7 @@ function SignInContent() {
             <div className="si-hero">
               <motion.div className="si-logo-mark"
                 initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-                <div className="si-logo-icon">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
-                  </svg>
-                </div>
+                <Image src="/logo.png" alt="Velamini" width={80} height={80} />
                 <div>
                   <div className="si-logo-name">Velamini</div>
                   <div className="si-logo-tag">Virtual Self Platform</div>
@@ -531,7 +525,7 @@ function SignInContent() {
               <motion.p className="si-desc"
                 initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.16 }}>
-                Train an AI that thinks, responds, and represents you. Share your knowledge and personality with the world — even when you're offline.
+                Train an AI that thinks, responds, and represents you. Share your knowledge and personality with the world — even when you&apos;re offline.
               </motion.p>
 
               <div className="si-pills">
@@ -621,8 +615,8 @@ function SignInContent() {
                     {credentialsLoading ? <span className="si-spinner" /> : "Continue with email"}
                   </button>
 
-                  <Link className="si-secondary-link" href={personalSignupUrl}>
-                    Create a personal account
+                  <Link className="si-secondary-link" href="/onboarding">
+                    New to Velamini? Create an account
                   </Link>
                 </form>
 
@@ -651,25 +645,6 @@ function SignInContent() {
                     </>
                   )}
                 </motion.button>
-
-                <div className="si-divider">or</div>
-
-                <Link
-                  href="/auth/org/signup"
-                  style={{
-                    width: "100%", display: "flex", alignItems: "center", justifyContent: "center",
-                    gap: 10, padding: "11px 20px", borderRadius: 13,
-                    background: "transparent", border: "1.5px solid var(--si-border)",
-                    color: "var(--si-muted)", fontSize: ".84rem", fontWeight: 500,
-                    fontFamily: "'DM Sans',system-ui,sans-serif", textDecoration: "none",
-                    transition: "all .2s", minHeight: 44, boxSizing: "border-box",
-                  }}
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                    <rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/>
-                  </svg>
-                  Register / sign in as Organisation
-                </Link>
 
                 <p className="si-terms">
                   By continuing you agree to our{" "}

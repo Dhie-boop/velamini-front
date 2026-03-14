@@ -34,6 +34,7 @@ export async function POST() {
     }
 
     if (user.emailVerified) {
+      // Return success indicating client should force-refresh session
       return NextResponse.json({ ok: true, alreadyVerified: true });
     }
 

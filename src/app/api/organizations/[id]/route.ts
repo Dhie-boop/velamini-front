@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { randomUUID } from "crypto";
 import { releasePhoneNumber } from "@/lib/twilio-provisioning";
 
 // GET /api/organizations/[id] - Get single organization
@@ -35,6 +36,16 @@ export async function GET(
         { error: "Organization not found" },
         { status: 404 }
       );
+    }
+
+    // JIT: Generate API key if missing (older accounts)
+    if (!organization.apiKey) {
+      const newKey = `vela_${randomUUID().replace(/-/g, "")}`;
+      await prisma.organization.update({
+        where: { id: organization.id },
+        data: { apiKey: newKey },
+      });
+      organization.apiKey = newKey;
     }
 
     return NextResponse.json({ ok: true, organization });
