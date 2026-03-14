@@ -159,6 +159,9 @@ function OrgLoginContent() {
                   {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
                 </button>
               </div>
+              <div style={{ marginTop: 6, textAlign: "right" }}>
+                <Link href="/auth/forgot-password" style={{ color: "#29A9D4", fontSize: ".85rem" }}>Forgot password?</Link>
+              </div>
             </div>
 
             {error && <div className="ol-error">{error}</div>}

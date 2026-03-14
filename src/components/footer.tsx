@@ -37,7 +37,7 @@ const SOCIAL = [
   {
     Icon: MessageSquare,
     label: "Slack",
-    href: "https://slack.velamini.com",
+    href: "https://coodic.slack.com/archives/C08MQ8XJ8AV",
     color: "#C0DCF0",
     hoverColor: "#ECB22E",
     desc: "Join the community",
@@ -441,9 +441,7 @@ export default function Footer() {
             <div className="vf-copy">
               <span>© 2026 Velamini.</span>
               <span className="vf-copy-sep"/>
-              <span>
-                developed by <a href="https://www.coodic.org/" target="_blank" rel="noopener noreferrer" className="vf-copy-link">Coodic</a>
-              </span>
+              
               <span>coodic <span className="vf-copy-love">made</span> it</span>
               <span className="vf-copy-sep"/>
               <span className="vf-copy-loc">

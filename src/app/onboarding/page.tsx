@@ -209,7 +209,7 @@ export default function OnboardingPage() {
       const data = await res.json();
       if (data.ok) {
         await update();
-        router.push(selectedType === "organization" ? "/Dashboard/organizations" : "/Dashboard");
+        router.push(selectedType === "organization" ? "/org/dashboard" : "/Dashboard");
       } else {
         setError(data.error || "Something went wrong.");
       }

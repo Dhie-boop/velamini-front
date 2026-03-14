@@ -1,3 +1,13 @@
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
 model Resume {
   id        String   @id @default(cuid())
   userId    String
@@ -148,6 +158,9 @@ model Organization {
   agentName        String?
   agentPersonality String? @db.Text
 
+  // AI Training Status
+  trainingStatus   String? @default("not_trained") // "not_trained", "training", "trained", "failed"
+
   // API access key for external integrations
   apiKey     String? @unique
   apiKeyHash String? @unique // SHA-256 of apiKey — use this for secure lookups after migration
@@ -287,6 +300,8 @@ model User {
   moderationReports  ModerationReport[]
   feedbacks          Feedback[]
   verifyTokens       VerifyToken[]
+
+  passwordResetTokens PasswordResetToken[]
 }
 
 model UserBillingRecord {

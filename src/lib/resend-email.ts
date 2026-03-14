@@ -38,11 +38,13 @@ async function sendEmail({
 
   if (error) {
     console.error("[Resend] email send failed", error);
-    throw new Error(`Resend send failed from ${sender()}: ${error.message || "Email send failed"}`);
-  }
+      throw new Error(`Resend send failed from ${sender()}: ${error.message || "Email send failed"}`);  
+    }  
+    return data;  
 
-  return data;
 }
+
+export { sendEmail };
 
 function otpTemplate({
   name,
