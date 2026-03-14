@@ -20,7 +20,7 @@ const nextConfig: NextConfig = {
       },
       {
         source: "/signin",
-        destination: "/",
+        destination: "/auth/signin",
         permanent: true,
       },
     ];

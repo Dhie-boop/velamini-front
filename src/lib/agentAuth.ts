@@ -45,7 +45,12 @@ export async function authenticateAgent(
   req: Request,
   opts: { checkQuota?: boolean } = {}
 ): Promise<AgentAuthResult> {
-  const rawKey = (req.headers.get("x-agent-key") ?? "").trim();
+  // Try both common casings to be extremely safe, though .get() should be case-insensitive in standard Request objects.
+  const rawKey = (
+    req.headers.get("x-agent-key") || 
+    req.headers.get("X-Agent-Key") || 
+    ""
+  ).trim();
 
   // 1. Format check — fail fast before any DB/rate-limit work
   if (!rawKey || !rawKey.startsWith("vela_")) {

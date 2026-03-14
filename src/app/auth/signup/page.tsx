@@ -1,23 +1,23 @@
 "use client";
-
 import { signIn } from "@/lib/auth-client";
 import { useEmailVerify } from "@/hooks/useEmailVerify";
 import { motion } from "framer-motion";
 import { Eye, EyeOff, Moon, Sparkles, Sun, UserRound } from "lucide-react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
 function SignupContent() {
-  const searchParams = useSearchParams();
-  const rawCallbackUrl = searchParams?.get("callbackUrl");
-  const postVerifyNext =
-    rawCallbackUrl && rawCallbackUrl.startsWith("/") && !rawCallbackUrl.startsWith("//")
-      ? rawCallbackUrl
-      : "/onboarding";
-  const callbackUrl = `/verify-email?next=${encodeURIComponent(postVerifyNext)}`;
 
-  const [isDark, setIsDark] = useState(false);
+  const callbackUrl = "/verify-email?type=personal";
+
+  const [isDark, setIsDark] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      const stored = localStorage.getItem("theme");
+      const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)")?.matches;
+      return stored === "dark" || (!stored && prefersDark);
+    } catch { return false; }
+  });
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -26,17 +26,12 @@ function SignupContent() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
   const { state: emailState, message: emailMessage, check: checkEmail, reset: resetEmailCheck } = useEmailVerify();
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem("theme");
-      const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)")?.matches;
-      const dark = stored === "dark" || (!stored && prefersDark);
-      setIsDark(dark);
-      document.documentElement.setAttribute("data-mode", dark ? "dark" : "light");
-    } catch {}
-  }, []);
+    document.documentElement.setAttribute("data-mode", isDark ? "dark" : "light");
+  }, [isDark]);
 
   const toggleTheme = () => {
     try {
@@ -93,7 +88,7 @@ function SignupContent() {
         localStorage.setItem("ob_account_type", "personal");
       } catch {}
 
-      const signInRes = await signIn("user-credentials", {
+      const signInRes = await signIn("credentials", {
         email: email.toLowerCase().trim(),
         password,
         callbackUrl,
@@ -101,7 +96,7 @@ function SignupContent() {
       });
 
       if (signInRes?.error) {
-        setError("Account created. Please sign in.");
+        setSuccessMsg("Account created! Please sign in.");
         setLoading(false);
         return;
       }
@@ -373,6 +368,16 @@ function SignupContent() {
               </div>
 
               {error && <div className="ps-error">{error}</div>}
+              {successMsg && (
+                <div style={{
+                  padding: "10px 12px", borderRadius: 10,
+                  background: "color-mix(in srgb,#22C55E 10%, transparent)",
+                  border: "1px solid color-mix(in srgb,#22C55E 26%, transparent)",
+                  color: "#4ade80", fontSize: ".79rem", lineHeight: 1.5,
+                }}>
+                  {successMsg}
+                </div>
+              )}
 
               <button className="ps-submit" type="submit" disabled={loading}>
                 {loading ? <div className="ps-spinner" /> : "Create account"}
@@ -380,11 +385,9 @@ function SignupContent() {
             </form>
 
             <p className="ps-links">
-              Already have an account? <Link href={`/auth/signin?callbackUrl=${encodeURIComponent(postVerifyNext)}`}>Sign in</Link>
+              Already have an account? <Link href="/auth/signin">Sign in</Link>
             </p>
-            <p className="ps-links">
-              Creating an organisation instead? <Link href="/auth/org/signup">Use the business flow</Link>
-            </p>
+
             <p className="ps-terms">
               By registering you agree to our <Link href="/terms">Terms of Service</Link> and <Link href="/privacy">Privacy Policy</Link>.
             </p>

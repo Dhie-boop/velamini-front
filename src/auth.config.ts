@@ -94,19 +94,33 @@ export const authConfig: NextAuthConfig = {
       const isOnAdminLogin = pathname.startsWith("/admin/auth")
       const isOnMaintenance = pathname === "/maintenance"
       const isOnVerifyEmail = pathname === "/verify-email"
+      const isOnOnboarding  = pathname === "/onboarding"
       const isVerified = !!authUser?.emailVerified
+      const accountType = authUser?.accountType as string | undefined
+
+      // Helper for dashboard path based on accountType
+      const dashboardForType = (type?: string) => type === "organization" ? "/Dashboard/organizations" : "/Dashboard"
 
       // Maintenance page and admin-auth pages are always accessible
       if (isOnMaintenance) return true
       if (isOnAdminLogin)  return true
+      
       if (isOnVerifyEmail) {
         if (!isLoggedIn) {
-          return Response.redirect(new URL("/auth/signin?callbackUrl=/verify-email", nextUrl))
+          return Response.redirect(new URL("/auth/signin", nextUrl))
         }
         if (isVerified) {
-          const nextPath = getSafeCallbackPath(nextUrl.searchParams.get("next"), "/Dashboard")
-          return Response.redirect(new URL(nextPath, nextUrl))
+          return Response.redirect(new URL(dashboardForType(accountType), nextUrl))
         }
+        return true
+      }
+
+      if (isOnOnboarding) {
+        if (isLoggedIn && isVerified) {
+          return Response.redirect(new URL(dashboardForType(accountType), nextUrl))
+        }
+        // Let unauthenticated or unverified users access /onboarding
+        // (If they are unverified they can choose to go there, but normally they shouldn't)
         return true
       }
 
@@ -128,6 +142,8 @@ export const authConfig: NextAuthConfig = {
       // Public routes that don't require authentication
       const isPublicRoute =
         pathname === "/" || pathname === "/chat" || pathname === "/logout"
+        
+      if (isPublicRoute) return true
 
       const isOnProtected =
         pathname.startsWith("/Dashboard") ||
@@ -136,42 +152,37 @@ export const authConfig: NextAuthConfig = {
         pathname.startsWith("/settings")
 
       if (isOnAuth) {
-        // Always allow explicit logout redirect pages to render the login form,
-        // even if a stale session cookie still exists.
         if (isLoggedOutRedirect) return true
-
-        // /auth/org/* pages are accessible even when logged in — they handle org creation
-        // for users who already have a personal account
-        if (pathname.startsWith("/auth/org")) return true
-
+        
+        // If already verified, don't let them hit signin/signup
         if (isLoggedIn) {
-          // Preserve ?create=org so authenticated users can still create an organisation
-          const callbackPath = getSafeCallbackPath(
-            nextUrl.searchParams.get("callbackUrl"),
-            "/Dashboard"
-          )
-          const dest = new URL(callbackPath, nextUrl)
-          // If org creation was requested, pass it through
-          if (nextUrl.searchParams.get("create") === "org" && !dest.searchParams.has("create")) {
-            dest.searchParams.set("create", "org")
-          }
-          return Response.redirect(dest)
+          return Response.redirect(new URL(dashboardForType(accountType), nextUrl))
         }
         return true
       }
 
-      if (isPublicRoute) return true
-
       if (isOnProtected) {
         if (isLoggedIn) {
+          // If unverified, go to verify-email
           if (!isAdminUser && !isVerified) {
             const dest = new URL("/verify-email", nextUrl)
-            const nextValue = pathname + nextUrl.search
-            if (nextValue.startsWith("/")) dest.searchParams.set("next", nextValue)
+            if (accountType) dest.searchParams.set("type", accountType)
             return Response.redirect(dest)
           }
+
+          // Rule: Personal users hitting /Dashboard/organizations -> /Dashboard
+          if (accountType === "personal" && pathname.startsWith("/Dashboard/organizations")) {
+            return Response.redirect(new URL("/Dashboard", nextUrl))
+          }
+
+          // Rule: Org users hitting EXACTLY /Dashboard -> /Dashboard/organizations
+          if (accountType === "organization" && pathname === "/Dashboard") {
+            return Response.redirect(new URL("/Dashboard/organizations", nextUrl))
+          }
+
           return true
         }
+        // Not logged in to a protected route -> signin
         return Response.redirect(
           new URL(`/auth/signin?callbackUrl=${encodeURIComponent(pathname)}`, nextUrl)
         )

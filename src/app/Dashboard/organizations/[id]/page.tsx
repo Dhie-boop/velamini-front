@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import OrgWrapper from "@/components/organization/wrapper";
+import type { Organization } from "@/types/organization/org-type";
 
 export default async function OrganizationDetailPage({
   params,
@@ -25,6 +26,17 @@ export default async function OrganizationDetailPage({
 
   if (!organization) {
     redirect("/Dashboard/organizations");
+  }
+
+  // JIT: If for some reason an org has no apiKey (older registries), generate one now.
+  if (!organization.apiKey) {
+    const { randomUUID } = await import("crypto");
+    const newKey = `vela_${randomUUID().replace(/-/g, "")}`;
+    await prisma.organization.update({
+      where: { id },
+      data: { apiKey: newKey },
+    });
+    organization.apiKey = newKey;
   }
 
   const [conversationCount, messageCount, recentChats] = await Promise.all([
@@ -73,5 +85,5 @@ export default async function OrganizationDetailPage({
       : null,
   };
 
-  return <OrgWrapper orgId={id} initialOrg={serializedOrg as any} initialStats={stats} />;
+  return <OrgWrapper orgId={id} initialOrg={serializedOrg as unknown as Organization} initialStats={stats} />;
 }

@@ -32,28 +32,9 @@ const adminCredentialsProvider = Credentials({
   },
 });
 
-const orgCredentialsProvider = Credentials({
-  id: "org-credentials",
-  name: "Organisation Login",
-  credentials: {
-    email:    { label: "Email",    type: "email"    },
-    password: { label: "Password", type: "password" },
-  },
-  async authorize(credentials) {
-    const email    = (credentials?.email    as string)?.toLowerCase().trim();
-    const password =  credentials?.password as string;
-    if (!email || !password) return null;
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user || user.accountType !== "organization" || !user.passwordHash) return null;
-    const valid = await bcrypt.compare(password, user.passwordHash);
-    if (!valid) return null;
-    return { id: user.id, email: user.email, name: user.name, image: user.image };
-  },
-});
-
-const userCredentialsProvider = Credentials({
-  id: "user-credentials",
-  name: "Personal Login",
+const unifiedCredentialsProvider = Credentials({
+  id: "credentials",
+  name: "Login",
   credentials: {
     email: { label: "Email", type: "email" },
     password: { label: "Password", type: "password" },
@@ -62,23 +43,27 @@ const userCredentialsProvider = Credentials({
     const email = (credentials?.email as string)?.toLowerCase().trim();
     const password = credentials?.password as string;
     if (!email || !password) return null;
+    
+    // We allow any valid user (personal or org)
     const user = await prisma.user.findUnique({ where: { email } });
-    if (!user || user.accountType !== "personal" || !user.passwordHash) return null;
+    if (!user || !user.passwordHash) return null;
+    
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) return null;
+    
     return { id: user.id, email: user.email, name: user.name, image: user.image };
   },
 });
 
-export const { handlers, signIn, signOut, auth } = NextAuth({
+// @ts-expect-error: NextAuth v5 beta doesn't export update properly in NextAuthResult yet
+export const { handlers, signIn, signOut, auth, update: updateSession } = NextAuth({
   adapter: PrismaAdapter(prisma),
   session: { strategy: "jwt" },
   ...authConfig,
   providers: [
     ...authConfig.providers,
     adminCredentialsProvider,
-    orgCredentialsProvider,
-    userCredentialsProvider,
+    unifiedCredentialsProvider,
   ],
   callbacks: {
     // Block banned users from signing in at all
