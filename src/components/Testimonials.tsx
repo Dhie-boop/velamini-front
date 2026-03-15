@@ -34,13 +34,6 @@ const TESTIMONIALS: Testimonial[] = [
     content: "The embed widget increased our lead capture by 40%. Visitors chat with our AI and we get qualified leads while we sleep.",
     rating: 5,
   },
-  {
-    name: "James Chen",
-    role: "CTO",
-    company: "FinTech Solutions",
-    content: "Integration was seamless. We used the REST API to connect to our existing CRM. Our support team productivity doubled in the first month.",
-    rating: 5,
-  },
 ];
 
 export default function Testimonials() {
@@ -191,48 +184,6 @@ export default function Testimonials() {
             </motion.div>
           ))}
         </div>
-
-        {/* Stats Row */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6, delay: 0.3 }}
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            gap: "clamp(2rem, 8vw, 5rem)",
-            marginTop: "4rem",
-            flexWrap: "wrap",
-          }}
-        >
-          {[
-            { value: "500+", label: "Businesses" },
-            { value: "50K+", label: "AI Conversations" },
-            { value: "99.9%", label: "Uptime" },
-            { value: "4.9/5", label: "Rating" },
-          ].map((stat, i) => (
-            <div key={i} style={{ textAlign: "center" }}>
-              <div style={{
-                fontSize: "clamp(1.5rem, 4vw, 2.5rem)",
-                fontWeight: 800,
-                color: "var(--fg)",
-                lineHeight: 1,
-              }}>
-                {stat.value}
-              </div>
-              <div style={{
-                fontSize: "0.8rem",
-                color: "var(--muted)",
-                textTransform: "uppercase",
-                letterSpacing: "0.1em",
-                marginTop: 4,
-              }}>
-                {stat.label}
-              </div>
-            </div>
-          ))}
-        </motion.div>
 
       </div>
     </section>
