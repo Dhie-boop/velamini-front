@@ -31,13 +31,16 @@ type ChatResponse = {
 };
 
 type UseAgentChatOptions = {
-  agentKey: string;
+  agentKey?: string;
   baseUrl?: string;
 };
 
 const trimTrailingSlash = (value: string) => value.replace(/\/+$/, "");
 
-export function useAgentChat({ agentKey, baseUrl = "/api/agent" }: UseAgentChatOptions) {
+export function useAgentChat({
+  agentKey = process.env.NEXT_PUBLIC_AGENT_KEY ?? process.env.NEXT_PUBLIC_EMBED_AGENT_KEY ?? "",
+  baseUrl = "/api/agent",
+}: UseAgentChatOptions = {}) {
   const [messages, setMessages] = useState<AgentMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const sessionId = useRef<string | undefined>(undefined);
@@ -53,6 +56,10 @@ export function useAgentChat({ agentKey, baseUrl = "/api/agent" }: UseAgentChatO
     async (text: string) => {
       const message = text.trim();
       if (!message || loading) return;
+      if (!agentKey) {
+        setMessages((prev) => [...prev, { role: "assistant", content: "Agent key is missing. Pass agentKey to useAgentChat() or set NEXT_PUBLIC_AGENT_KEY." }]);
+        return;
+      }
 
       setMessages((prev) => [...prev, { role: "user", content: message }]);
       setLoading(true);
@@ -90,7 +97,7 @@ export function useAgentChat({ agentKey, baseUrl = "/api/agent" }: UseAgentChatO
 
   const submitFeedback = useCallback(
     async (rating: 1 | -1) => {
-      if (!sessionId.current) return;
+      if (!sessionId.current || !agentKey) return;
 
       await fetch(`${resolvedBase}/feedback`, {
         method: "POST",
@@ -103,6 +110,10 @@ export function useAgentChat({ agentKey, baseUrl = "/api/agent" }: UseAgentChatO
 
   const loadSessions = useCallback(
     async (page = 1, limit = 20) => {
+      if (!agentKey) {
+        throw new Error("Agent key is missing");
+      }
+
       const res = await fetch(`${resolvedBase}/sessions?page=${page}&limit=${limit}`, {
         headers: { "X-Agent-Key": agentKey },
       });
@@ -118,6 +129,10 @@ export function useAgentChat({ agentKey, baseUrl = "/api/agent" }: UseAgentChatO
 
   const loadHistory = useCallback(
     async (nextSessionId: string) => {
+      if (!agentKey) {
+        throw new Error("Agent key is missing");
+      }
+
       const res = await fetch(`${resolvedBase}/history?sessionId=${encodeURIComponent(nextSessionId)}`, {
         headers: { "X-Agent-Key": agentKey },
       });
