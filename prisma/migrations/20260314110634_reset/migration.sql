@@ -1,15 +1,5 @@
-/*
-  Warnings:
-
-  - A unique constraint covering the columns `[apiKeyHash]` on the table `Organization` will be added. If there are existing duplicate values, this will fail.
-
-*/
 -- AlterTable
-ALTER TABLE "Organization" ADD COLUMN     "apiKeyHash" TEXT,
-ADD COLUMN     "trainingStatus" TEXT DEFAULT 'not_trained';
-
--- AlterTable
-ALTER TABLE "data_analyses" ADD COLUMN     "chatHistory" JSONB NOT NULL DEFAULT '[]';
+ALTER TABLE "Organization" ADD COLUMN     "trainingStatus" TEXT DEFAULT 'not_trained';
 
 -- CreateTable
 CREATE TABLE "PasswordResetToken" (
@@ -71,9 +61,6 @@ CREATE INDEX "ModerationReport_status_idx" ON "ModerationReport"("status");
 
 -- CreateIndex
 CREATE INDEX "ModerationReport_targetUserId_idx" ON "ModerationReport"("targetUserId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "Organization_apiKeyHash_key" ON "Organization"("apiKeyHash");
 
 -- AddForeignKey
 ALTER TABLE "PasswordResetToken" ADD CONSTRAINT "PasswordResetToken_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
