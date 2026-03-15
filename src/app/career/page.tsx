@@ -332,7 +332,7 @@ export default function CareersPage() {
           <div className="carculture-main">
             <h2>A team that ships, learns, and cares</h2>
             <p>
-              Velamini was founded by people who were frustrated that the best AI tools were built for Silicon Valley — not for Kigali, Lagos, or Nairobi or Anywhere in Africa. We&apos;re fixing that.
+              Velamini was founded by coodic  after seeing best AI tools were built for Silicon Valley — not for Kigali, Lagos, or Nairobi or Anywhere in Africa. We&apos;re fixing that.
             </p>
             <p>
               We move fast, take ownership seriously, and genuinely celebrate each other&apos;s wins. If you&apos;ve spent time in corporate environments wondering why things take so long — you&apos;ll love it here.

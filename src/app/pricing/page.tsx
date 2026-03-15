@@ -62,7 +62,7 @@ export const ORG_PLANS = [
     id: "free",
     label: "Free",
     price: 0,
-    msgs: 500,
+    msgs: 100,
     Icon: Zap,
     color: "#34D399",
     tagline: "Test the waters",
@@ -152,6 +152,9 @@ const PERIOD_DISPLAY = {
   yearly:    { perMonthFactor: 0.8, billingNote: "billed annually" },
 } as const;
 
+type BillingPeriod = keyof typeof PERIOD_DISPLAY;
+type PricingPlan = typeof ORG_PLANS[number] | typeof PERSONAL_PLANS[number];
+
 const FAQS = [
   { q: "Can I start without a credit card?",    a: "Yes — the Free plan requires no payment. You get messages immediately after signing up." },
   { q: "What payment methods are supported?",   a: "We accept MTN MoMo, Airtel Money, Visa, and Mastercard via Flutterwave — common across Rwanda, Kenya, Nigeria and much of Africa." },
@@ -162,6 +165,12 @@ const FAQS = [
 ];
 
 function fmtRWF(n: number) { return n.toLocaleString("en-RW"); }
+function calcPeriodMonthlyPrice(price: number, period: BillingPeriod) {
+  return price === 0 ? 0 : Math.round(price * PERIOD_DISPLAY[period].perMonthFactor);
+}
+function calcYearlyTotal(price: number) {
+  return calcPeriodMonthlyPrice(price, "yearly") * 12;
+}
 
 /* ── FAQ item ────────────────────────────────────────────────── */
 function FaqItem({ q, a }: { q: string; a: string }) {
@@ -191,11 +200,11 @@ function FaqItem({ q, a }: { q: string; a: string }) {
 }
 
 /* ── Plan card ───────────────────────────────────────────────── */
-function PlanCard({ plan, period }: { plan: typeof ORG_PLANS[number] | typeof PERSONAL_PLANS[number]; period: "monthly" | "6months" | "yearly" }) {
+function PlanCard({ plan, period }: { plan: PricingPlan; period: BillingPeriod }) {
   const Ic = plan.Icon;
   const hi = plan.highlight;
   const pInfo = PERIOD_DISPLAY[period];
-  const monthlyPrice = (plan.price as number) === 0 ? 0 : Math.round((plan.price as number) * pInfo.perMonthFactor);
+  const monthlyPrice = calcPeriodMonthlyPrice(plan.price as number, period);
   return (
     <div className={`pc${hi ? " pc--hi" : ""}`} style={{ ["--col" as any]: plan.color }}>
       {/* top accent line */}
@@ -266,12 +275,83 @@ function PlanCard({ plan, period }: { plan: typeof ORG_PLANS[number] | typeof PE
   );
 }
 
+function YearlyCalculator({
+  plans,
+  selectedPlanId,
+  onSelectPlan,
+}: {
+  plans: readonly PricingPlan[];
+  selectedPlanId: string;
+  onSelectPlan: (planId: string) => void;
+}) {
+  const paidPlans = plans.filter((plan) => plan.price > 0);
+  const selectedPlan = paidPlans.find((plan) => plan.id === selectedPlanId) ?? paidPlans[0];
+
+  if (!selectedPlan) return null;
+
+  const monthlyBase = selectedPlan.price as number;
+  const yearlyMonthly = calcPeriodMonthlyPrice(monthlyBase, "yearly");
+  const yearlyTotal = calcYearlyTotal(monthlyBase);
+  const monthlyTotalForYear = monthlyBase * 12;
+  const savings = monthlyTotalForYear - yearlyTotal;
+
+  return (
+    <section className="pycalc" aria-label="Yearly price calculator">
+      <div className="pycalc-copy">
+        <div className="pycalc-kicker">Yearly Calculator</div>
+        <h2 className="pycalc-h">See what you pay when billed yearly</h2>
+        <p className="pycalc-sub">
+          Annual billing applies the built-in 20% discount and shows the full amount you commit for the year.
+        </p>
+      </div>
+
+      <div className="pycalc-box">
+        <label className="pycalc-field">
+          <span className="pycalc-label">Choose a paid plan</span>
+          <select
+            className="pycalc-select"
+            value={selectedPlan.id}
+            onChange={(e) => onSelectPlan(e.target.value)}
+          >
+            {paidPlans.map((plan) => (
+              <option key={plan.id} value={plan.id}>
+                {plan.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <div className="pycalc-stats">
+          <div className="pycalc-stat">
+            <span className="pycalc-stat-label">Monthly list price</span>
+            <strong className="pycalc-stat-value">{fmtRWF(monthlyBase)} RWF</strong>
+          </div>
+          <div className="pycalc-stat">
+            <span className="pycalc-stat-label">Effective monthly on yearly</span>
+            <strong className="pycalc-stat-value">{fmtRWF(yearlyMonthly)} RWF</strong>
+          </div>
+          <div className="pycalc-stat pycalc-stat--accent">
+            <span className="pycalc-stat-label">Total billed for 12 months</span>
+            <strong className="pycalc-stat-value">{fmtRWF(yearlyTotal)} RWF</strong>
+          </div>
+          <div className="pycalc-stat">
+            <span className="pycalc-stat-label">You save vs monthly</span>
+            <strong className="pycalc-stat-value">{fmtRWF(savings)} RWF</strong>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /* ── Page ────────────────────────────────────────────────────── */
 export default function PricingPage() {
   const [isDark,  setIsDark]  = useState(true);
   const [tab,     setTab]     = useState<"personal"|"org">("org");
-  const [period,  setPeriod]  = useState<"monthly"|"6months"|"yearly">("monthly");
+  const [period,  setPeriod]  = useState<BillingPeriod>("monthly");
   const [mounted, setMounted] = useState(false);
+  const [personalCalcPlan, setPersonalCalcPlan] = useState("personal-plus");
+  const [orgCalcPlan, setOrgCalcPlan] = useState("starter");
 
   useEffect(() => {
     setMounted(true);
@@ -451,6 +531,111 @@ export default function PricingPage() {
           box-shadow:0 2px 16px color-mix(in srgb,var(--ac) 42%,transparent);
         }
         .pts-btn.on svg{color:#fff}
+
+        .pbill{
+          display:flex;justify-content:center;
+          padding:0 20px 2rem;
+        }
+        .pbill-inner{
+          display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:center;
+          padding:7px;
+          border-radius:18px;
+          background:color-mix(in srgb,var(--su) 80%,transparent);
+          border:1.5px solid var(--br2);
+          box-shadow:0 4px 24px rgba(0,0,0,.1);
+          backdrop-filter:blur(14px);
+        }
+        .pbill-btn{
+          border:none;background:none;color:var(--mu);cursor:pointer;
+          padding:10px 15px;border-radius:12px;
+          font-family:inherit;font-size:.78rem;font-weight:700;
+          transition:all .18s;
+        }
+        .pbill-btn:hover{color:var(--ac)}
+        .pbill-btn.on{
+          background:var(--ac);color:#fff;
+          box-shadow:0 2px 16px color-mix(in srgb,var(--ac) 42%,transparent);
+        }
+        .pbill-save{
+          display:inline-flex;align-items:center;justify-content:center;
+          margin-left:7px;padding:3px 8px;border-radius:999px;
+          font-size:.58rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+          background:color-mix(in srgb,#34D399 16%,transparent);
+          color:#34D399;
+        }
+
+        .pycalc{
+          max-width:1160px;margin:0 auto 2.6rem;padding:0 20px;
+          display:grid;grid-template-columns:1.05fr 1.35fr;gap:20px;align-items:stretch;
+        }
+        .pycalc-copy,.pycalc-box{
+          border:1px solid var(--br2);
+          border-radius:22px;
+          background:color-mix(in srgb,var(--su) 78%,transparent);
+          backdrop-filter:blur(14px);
+          box-shadow:0 8px 30px rgba(0,0,0,.08);
+        }
+        .pycalc-copy{padding:24px}
+        .pycalc-box{padding:20px}
+        .pycalc-kicker{
+          display:inline-flex;align-items:center;
+          padding:5px 11px;border-radius:999px;
+          font-size:.62rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;
+          background:color-mix(in srgb,var(--ac) 12%,transparent);
+          color:var(--ac);
+          margin-bottom:12px;
+        }
+        .pycalc-h{
+          font-family:'DM Serif Display',Georgia,serif;
+          font-size:clamp(1.4rem,3vw,2rem);
+          font-weight:400;line-height:1.12;color:var(--fg);
+          margin-bottom:10px;
+        }
+        .pycalc-sub{
+          color:var(--mu);font-size:.84rem;line-height:1.72;
+        }
+        .pycalc-field{display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
+        .pycalc-label{
+          color:var(--fg2);font-size:.72rem;font-weight:700;letter-spacing:.03em;
+          text-transform:uppercase;
+        }
+        .pycalc-select{
+          width:100%;
+          border-radius:14px;border:1px solid var(--br2);
+          background:var(--su2);color:var(--fg);
+          padding:13px 14px;font:inherit;font-size:.9rem;
+          outline:none;
+        }
+        .pycalc-select:focus{border-color:var(--ac)}
+        .pycalc-stats{
+          display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;
+        }
+        .pycalc-stat{
+          padding:16px;border-radius:16px;border:1px solid var(--br);
+          background:color-mix(in srgb,var(--su2) 88%,transparent);
+        }
+        .pycalc-stat--accent{
+          background:color-mix(in srgb,var(--ac) 10%,var(--su2));
+          border-color:color-mix(in srgb,var(--ac) 30%,var(--br));
+        }
+        .pycalc-stat-label{
+          display:block;margin-bottom:7px;
+          font-size:.68rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+          color:var(--fg2);
+        }
+        .pycalc-stat-value{
+          display:block;
+          font-family:'DM Serif Display',Georgia,serif;
+          font-size:1.45rem;font-weight:400;line-height:1.08;color:var(--fg);
+        }
+        @media(max-width:860px){
+          .pycalc{grid-template-columns:1fr}
+        }
+        @media(max-width:560px){
+          .pbill-inner{width:100%}
+          .pbill-btn{flex:1 1 calc(50% - 6px);text-align:center}
+          .pycalc-stats{grid-template-columns:1fr}
+        }
 
         /* ─── Cards grid ───────────────────────────────────────── */
         .pgrid{
@@ -793,6 +978,26 @@ export default function PricingPage() {
             </button>
           </div>
         </div>
+
+        <div className="pbill">
+          <div className="pbill-inner" role="tablist" aria-label="Billing period">
+            <button className={`pbill-btn${period==="monthly"?" on":""}`} onClick={() => setPeriod("monthly")}>
+              Monthly
+            </button>
+            <button className={`pbill-btn${period==="6months"?" on":""}`} onClick={() => setPeriod("6months")}>
+              6 Months <span className="pbill-save">Save 10%</span>
+            </button>
+            <button className={`pbill-btn${period==="yearly"?" on":""}`} onClick={() => setPeriod("yearly")}>
+              Yearly <span className="pbill-save">Save 20%</span>
+            </button>
+          </div>
+        </div>
+
+        <YearlyCalculator
+          plans={plans as readonly PricingPlan[]}
+          selectedPlanId={tab === "personal" ? personalCalcPlan : orgCalcPlan}
+          onSelectPlan={tab === "personal" ? setPersonalCalcPlan : setOrgCalcPlan}
+        />
 
         {/* ── Plan cards ── */}
         <div className={`pgrid ${tab==="personal" ? "pgrid--2" : "pgrid--4"}`}>

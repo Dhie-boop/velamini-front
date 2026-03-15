@@ -9,7 +9,7 @@ const GREETING = "Hey! I'm Codi, Coodic's AI assistant. Ask me anything about wh
 
 const SUGGESTIONS = [
   "What does Coodic do?",
-  "How do I get started?",
+  "When is Coodic funded?",
 ];
 
 function nowTime() {
