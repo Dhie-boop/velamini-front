@@ -14,6 +14,9 @@
   var agentName = el.getAttribute('data-agent-name') || 'AI Agent';
   var theme     = el.getAttribute('data-theme')      || 'auto';
   var apiBase   = el.getAttribute('data-api-base')   || '';
+  var scriptOrigin = '';
+  try { scriptOrigin = new URL(el.src, w.location.href).origin; } catch (e) {}
+  if (!apiBase) apiBase = scriptOrigin;
 
   if (!agentKey) { console.warn('[Velamini] data-agent-key is required'); return; }
 
@@ -43,41 +46,51 @@
   /* ── CSS ─────────────────────────────────────────────────────── */
   var styleEl = d.createElement('style');
   styleEl.textContent = [
+    '#vela-root,#vela-root *{box-sizing:border-box}',
+    '#vela-root{font-family:Inter,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color-scheme:light dark}',
     /* Floating button — always bottom-right */
-    '#vela-btn{position:fixed;bottom:24px;right:24px;z-index:2147483646;width:54px;height:54px;border-radius:50%;background:rgba(56,189,248,.62);border:none;cursor:pointer;box-shadow:0 4px 18px rgba(56,189,248,.22);display:flex;align-items:center;justify-content:center;transition:transform .2s,box-shadow .2s;outline:none;padding:0}',
-    '#vela-btn:hover{transform:scale(1.08);box-shadow:0 8px 24px rgba(56,189,248,.32)}',
-    '#vela-btn svg{pointer-events:none;flex-shrink:0}',
+    '#vela-btn{position:fixed;bottom:24px;right:24px;z-index:2147483646;width:58px;height:58px;border-radius:50%;background:linear-gradient(180deg,#149ee7 0%,#0a7ad9 100%);border:1px solid rgba(255,255,255,.24);cursor:pointer;box-shadow:0 16px 34px rgba(10,122,217,.34),0 0 0 1px rgba(10,122,217,.16);display:flex;align-items:center;justify-content:center;transition:transform .2s,box-shadow .2s,filter .2s;outline:none;padding:0;-webkit-tap-highlight-color:transparent}',
+    '#vela-btn:hover{transform:translateY(-2px) scale(1.04);box-shadow:0 20px 38px rgba(10,122,217,.42),0 0 0 1px rgba(10,122,217,.24);filter:saturate(1.05)}',
+    '#vela-btn:focus-visible{box-shadow:0 0 0 4px rgba(255,255,255,.9),0 0 0 8px rgba(20,158,231,.42),0 16px 34px rgba(10,122,217,.34)}',
+    '#vela-btn svg{pointer-events:none;flex-shrink:0;filter:drop-shadow(0 1px 1px rgba(0,0,0,.22))}',
     /* Panel — always anchored bottom-right */
-    '#vela-panel{position:fixed;bottom:90px;right:24px;z-index:2147483645;width:360px;max-width:calc(100vw - 32px);height:520px;max-height:calc(100dvh - 110px);border-radius:18px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 64px rgba(0,0,0,.28);transform-origin:bottom right;transition:transform .22s cubic-bezier(.16,1,.3,1),opacity .18s ease}',
+    '#vela-panel{position:fixed;bottom:98px;right:24px;z-index:2147483645;width:360px;max-width:calc(100vw - 32px);height:520px;max-height:calc(100dvh - 118px);border-radius:20px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,.34);transform-origin:bottom right;transition:transform .22s cubic-bezier(.16,1,.3,1),opacity .18s ease;backdrop-filter:blur(14px)}',
     '#vela-panel.vela-hidden{transform:scale(.85) translateY(16px);opacity:0;pointer-events:none}',
     /* Light */
-    '#vela-panel.vl{background:#fff;border:1px solid #e2e8f0}',
-    '#vela-panel.vl .vela-hd{background:#0ea5e9;color:#fff}',
-    '#vela-panel.vl .vela-msgs{background:#f8fafc}',
-    '#vela-panel.vl .vela-footer{background:#fff;border-top:1px solid #e8edf2}',
-    '#vela-panel.vl .vela-inp{background:#f1f5f9;color:#0f172a;border:1px solid #e2e8f0}',
-    '#vela-panel.vl .vela-bubble-bot{background:#fff;color:#0f172a;border:1px solid #e2e8f0}',
-    '#vela-panel.vl .vela-bubble-usr{background:#0ea5e9;color:#fff}',
-    '#vela-panel.vl .vela-typing{color:#64748b}',
-    '#vela-panel.vl .vela-branding{color:#94a3b8}',
+    '#vela-panel.vl{background:#ffffff;border:1px solid #d9e5f0}',
+    '#vela-panel.vl .vela-hd{background:linear-gradient(180deg,#1187da 0%,#0a74c4 100%);color:#fff}',
+    '#vela-panel.vl .vela-msgs{background:linear-gradient(180deg,#f5f9fc 0%,#eff5fa 100%)}',
+    '#vela-panel.vl .vela-footer{background:#fff;border-top:1px solid #dfe8ef}',
+    '#vela-panel.vl .vela-inp{background:#eef4f8;color:#102132;border:1px solid #cedce7}',
+    '#vela-panel.vl .vela-inp::placeholder{color:#6d8294}',
+    '#vela-panel.vl .vela-bubble-bot{background:#fff;color:#102132;border:1px solid #dbe6ee}',
+    '#vela-panel.vl .vela-bubble-usr{background:linear-gradient(180deg,#1297e3 0%,#0a79d6 100%);color:#fff;border:1px solid rgba(10,121,214,.24)}',
+    '#vela-panel.vl .vela-typing{color:#5f7688}',
+    '#vela-panel.vl .vela-branding{color:#8aa0b3}',
+    '#vela-panel.vl .vela-send{background:linear-gradient(180deg,#149ee7 0%,#0a7ad9 100%);color:#fff;box-shadow:0 8px 18px rgba(10,122,217,.22)}',
+    '#vela-panel.vl .vela-send:disabled{background:#c6d7e5;color:#f8fbfe;box-shadow:none}',
     /* Dark */
-    '#vela-panel.vd{background:#0f1a24;border:1px solid #1e3448}',
-    '#vela-panel.vd .vela-hd{background:#0a1520;color:#e8f4fd;border-bottom:1px solid #1e3448}',
-    '#vela-panel.vd .vela-msgs{background:#0a0f14}',
-    '#vela-panel.vd .vela-footer{background:#0f1a24;border-top:1px solid #1e3448}',
-    '#vela-panel.vd .vela-inp{background:#0a1520;color:#e8f4fd;border:1px solid #1e3448}',
-    '#vela-panel.vd .vela-bubble-bot{background:#111e2a;color:#e8f4fd;border:1px solid #1e3448}',
-    '#vela-panel.vd .vela-bubble-usr{background:#0ea5e9;color:#fff}',
-    '#vela-panel.vd .vela-typing{color:#7ea8c4}',
-    '#vela-panel.vd .vela-branding{color:#3d6480}',
+    '#vela-panel.vd{background:#0c1520;border:1px solid #23384b}',
+    '#vela-panel.vd .vela-hd{background:linear-gradient(180deg,#0f2131 0%,#0a1622 100%);color:#eef7ff;border-bottom:1px solid #1f3345}',
+    '#vela-panel.vd .vela-msgs{background:linear-gradient(180deg,#09111a 0%,#0b131c 100%)}',
+    '#vela-panel.vd .vela-footer{background:#0d1823;border-top:1px solid #1f3345}',
+    '#vela-panel.vd .vela-inp{background:#0f2131;color:#eef7ff;border:1px solid #2a4357}',
+    '#vela-panel.vd .vela-inp::placeholder{color:#7e9bb0}',
+    '#vela-panel.vd .vela-bubble-bot{background:#122231;color:#ecf6ff;border:1px solid #284154}',
+    '#vela-panel.vd .vela-bubble-usr{background:linear-gradient(180deg,#1aa4ee 0%,#0a7fdb 100%);color:#fff;border:1px solid rgba(255,255,255,.08)}',
+    '#vela-panel.vd .vela-typing{color:#89acc5}',
+    '#vela-panel.vd .vela-branding{color:#51748d}',
+    '#vela-panel.vd .vela-send{background:linear-gradient(180deg,#1aa4ee 0%,#0a7fdb 100%);color:#fff;box-shadow:0 8px 18px rgba(10,127,219,.26)}',
+    '#vela-panel.vd .vela-send:disabled{background:#294253;color:#9bb3c6;box-shadow:none}',
     /* Shared panel parts */
     '.vela-hd{padding:13px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0}',
     '.vela-av{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-size:.78rem;font-weight:700;color:#fff;flex-shrink:0;letter-spacing:.04em}',
     '.vela-hd-info{flex:1;min-width:0}',
     '.vela-hd-name{font-size:.84rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3}',
     '.vela-hd-status{font-size:.63rem;opacity:.75;margin-top:1px}',
-    '.vela-close{background:none;border:none;cursor:pointer;opacity:.65;padding:4px;line-height:1;color:inherit;font-size:18px;transition:opacity .15s;flex-shrink:0}',
-    '.vela-close:hover{opacity:1}',
+    '.vela-close{background:none;border:none;cursor:pointer;opacity:.72;padding:4px;line-height:1;color:inherit;font-size:18px;transition:opacity .15s,transform .15s;flex-shrink:0}',
+    '.vela-close:hover{opacity:1;transform:scale(1.06)}',
+    '.vela-close:focus-visible,.vela-send:focus-visible,.vela-inp:focus-visible{outline:2px solid #7ed3fc;outline-offset:2px}',
     /* Messages */
     '.vela-msgs{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;scroll-behavior:smooth}',
     '.vela-msgs::-webkit-scrollbar{width:3px}',
@@ -92,11 +105,12 @@
     '.vela-typing.vela-show{display:block}',
     /* Footer */
     '.vela-footer{padding:10px 12px;display:flex;align-items:flex-end;gap:8px;flex-shrink:0}',
-    '.vela-inp{flex:1;border-radius:10px;padding:9px 12px;font-size:.83rem;outline:none;resize:none;font-family:inherit;line-height:1.45;transition:border-color .15s;min-height:38px;max-height:96px}',
+    '.vela-inp{flex:1;border-radius:12px;padding:9px 12px;font-size:.83rem;outline:none;resize:none;font-family:inherit;line-height:1.45;transition:border-color .15s,box-shadow .15s,background .15s;min-height:38px;max-height:96px}',
     '.vela-inp:focus{border-color:#38bdf8!important}',
-    '.vela-send{width:36px;height:36px;flex-shrink:0;border-radius:10px;border:none;background:#38bdf8;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:opacity .15s;padding:0}',
-    '.vela-send:hover{opacity:.85}',
-    '.vela-send:disabled{opacity:.4;cursor:default}',
+    '.vela-inp:focus{box-shadow:0 0 0 3px rgba(56,189,248,.18)}',
+    '.vela-send{width:38px;height:38px;flex-shrink:0;border-radius:12px;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .15s,opacity .15s,box-shadow .15s;padding:0}',
+    '.vela-send:hover{transform:translateY(-1px);opacity:.96}',
+    '.vela-send:disabled{cursor:default;transform:none;opacity:1}',
     '.vela-branding{text-align:center;font-size:.6rem;padding:5px 0 7px;letter-spacing:.07em;flex-shrink:0}',
     /* Mobile: full-width drawer from bottom */
     '@media(max-width:480px){#vela-panel{bottom:0;right:0;left:0;width:100%;max-width:100%;border-bottom-left-radius:0;border-bottom-right-radius:0;max-height:82dvh}#vela-btn{bottom:16px;right:16px}}',

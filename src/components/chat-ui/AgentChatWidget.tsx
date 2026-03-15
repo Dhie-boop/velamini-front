@@ -164,47 +164,64 @@ export default function AgentChatWidget({
       </div>
 
       <style jsx>{`
+        .vela-react,
+        .vela-react :global(*) {
+          box-sizing: border-box;
+        }
+
+        .vela-react {
+          color-scheme: light dark;
+          font-family: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
         .vela-btn {
           position: fixed;
           bottom: 24px;
           right: 24px;
           z-index: 2147483646;
-          width: 54px;
-          height: 54px;
+          width: 58px;
+          height: 58px;
           border-radius: 50%;
-          background: #0b84c6;
-          border: none;
+          background: linear-gradient(180deg, #149ee7 0%, #0a7ad9 100%);
+          border: 1px solid rgba(255, 255, 255, 0.24);
           cursor: pointer;
-          box-shadow: 0 6px 22px rgba(11, 132, 198, 0.34);
+          box-shadow: 0 16px 34px rgba(10, 122, 217, 0.34), 0 0 0 1px rgba(10, 122, 217, 0.16);
           display: flex;
           align-items: center;
           justify-content: center;
-          transition: transform 0.2s, box-shadow 0.2s;
+          transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
           outline: none;
           padding: 0;
+          -webkit-tap-highlight-color: transparent;
         }
 
         .vela-btn:hover {
-          transform: scale(1.08);
-          box-shadow: 0 12px 30px rgba(11, 132, 198, 0.42);
+          transform: translateY(-2px) scale(1.04);
+          box-shadow: 0 20px 38px rgba(10, 122, 217, 0.42), 0 0 0 1px rgba(10, 122, 217, 0.24);
+          filter: saturate(1.05);
+        }
+
+        .vela-btn:focus-visible {
+          box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.9), 0 0 0 8px rgba(20, 158, 231, 0.42), 0 16px 34px rgba(10, 122, 217, 0.34);
         }
 
         .vela-panel {
           position: fixed;
-          bottom: 90px;
+          bottom: 98px;
           right: 24px;
           z-index: 2147483645;
           width: 360px;
           max-width: calc(100vw - 32px);
           height: 520px;
-          max-height: calc(100dvh - 110px);
-          border-radius: 18px;
+          max-height: calc(100dvh - 118px);
+          border-radius: 20px;
           display: flex;
           flex-direction: column;
           overflow: hidden;
-          box-shadow: 0 20px 64px rgba(0, 0, 0, 0.28);
+          box-shadow: 0 24px 70px rgba(0, 0, 0, 0.34);
           transform-origin: bottom right;
           transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.18s ease;
+          backdrop-filter: blur(14px);
         }
 
         .vela-hidden {
@@ -214,84 +231,118 @@ export default function AgentChatWidget({
         }
 
         .vl {
-          background: #fff;
-          border: 1px solid #e2e8f0;
+          background: #ffffff;
+          border: 1px solid #d9e5f0;
         }
 
         .vl .vela-hd {
-          background: #0b84c6;
+          background: linear-gradient(180deg, #1187da 0%, #0a74c4 100%);
           color: #fff;
         }
 
         .vl .vela-msgs {
-          background: #f3f7fb;
+          background: linear-gradient(180deg, #f5f9fc 0%, #eff5fa 100%);
         }
 
         .vl .vela-footer {
           background: #fff;
-          border-top: 1px solid #dce6ef;
+          border-top: 1px solid #dfe8ef;
         }
 
         .vl .vela-inp {
-          background: #eef4f9;
-          color: #0b1e2e;
-          border: 1px solid #d3e1ee;
+          background: #eef4f8;
+          color: #102132;
+          border: 1px solid #cedce7;
+        }
+
+        .vl .vela-inp::placeholder {
+          color: #6d8294;
         }
 
         .vl .vela-bubble-bot {
           background: #fff;
-          color: #0b1e2e;
-          border: 1px solid #e2e8f0;
+          color: #102132;
+          border: 1px solid #dbe6ee;
         }
 
         .vl .vela-bubble-usr {
-          background: #0b84c6;
+          background: linear-gradient(180deg, #1297e3 0%, #0a79d6 100%);
           color: #fff;
+          border: 1px solid rgba(10, 121, 214, 0.24);
         }
 
         .vl .vela-typing {
-          color: #557087;
+          color: #5f7688;
+        }
+
+        .vl .vela-send {
+          background: linear-gradient(180deg, #149ee7 0%, #0a7ad9 100%);
+          color: #fff;
+          box-shadow: 0 8px 18px rgba(10, 122, 217, 0.22);
+        }
+
+        .vl .vela-send:disabled {
+          background: #c6d7e5;
+          color: #f8fbfe;
+          box-shadow: none;
         }
 
         .vd {
-          background: #0e1822;
-          border: 1px solid #22384a;
+          background: #0c1520;
+          border: 1px solid #23384b;
         }
 
         .vd .vela-hd {
-          background: #102133;
-          color: #e6f3ff;
-          border-bottom: 1px solid #22384a;
+          background: linear-gradient(180deg, #0f2131 0%, #0a1622 100%);
+          color: #eef7ff;
+          border-bottom: 1px solid #1f3345;
         }
 
         .vd .vela-msgs {
-          background: #0c141d;
+          background: linear-gradient(180deg, #09111a 0%, #0b131c 100%);
         }
 
         .vd .vela-footer {
-          background: #0e1822;
-          border-top: 1px solid #22384a;
+          background: #0d1823;
+          border-top: 1px solid #1f3345;
         }
 
         .vd .vela-inp {
-          background: #102133;
-          color: #e6f3ff;
-          border: 1px solid #2a4458;
+          background: #0f2131;
+          color: #eef7ff;
+          border: 1px solid #2a4357;
+        }
+
+        .vd .vela-inp::placeholder {
+          color: #7e9bb0;
         }
 
         .vd .vela-bubble-bot {
-          background: #132637;
-          color: #e6f3ff;
-          border: 1px solid #284255;
+          background: #122231;
+          color: #ecf6ff;
+          border: 1px solid #284154;
         }
 
         .vd .vela-bubble-usr {
-          background: #14a7ff;
+          background: linear-gradient(180deg, #1aa4ee 0%, #0a7fdb 100%);
           color: #fff;
+          border: 1px solid rgba(255, 255, 255, 0.08);
         }
 
         .vd .vela-typing {
-          color: #88b0ca;
+          color: #89acc5;
+        }
+
+        .vd .vela-send {
+          background: linear-gradient(180deg, #1aa4ee 0%, #0a7fdb 100%);
+          color: #fff;
+          box-shadow: 0 8px 18px rgba(10, 127, 219, 0.26);
+        }
+
+        .vd .vela-send:disabled {
+          background: #294253;
+          color: #9bb3c6;
+          box-shadow: none;
         }
 
         .vela-hd {
@@ -341,17 +392,18 @@ export default function AgentChatWidget({
           background: none;
           border: none;
           cursor: pointer;
-          opacity: 0.65;
+          opacity: 0.72;
           padding: 4px;
           line-height: 1;
           color: inherit;
           font-size: 18px;
-          transition: opacity 0.15s;
+          transition: opacity 0.15s, transform 0.15s;
           flex-shrink: 0;
         }
 
         .vela-close:hover {
           opacity: 1;
+          transform: scale(1.06);
         }
 
         .vela-msgs {
@@ -426,45 +478,53 @@ export default function AgentChatWidget({
 
         .vela-inp {
           flex: 1;
-          border-radius: 10px;
+          border-radius: 12px;
           padding: 9px 12px;
           font-size: 0.83rem;
           outline: none;
           resize: none;
           font-family: inherit;
           line-height: 1.45;
-          transition: border-color 0.15s;
+          transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
           min-height: 38px;
           max-height: 96px;
         }
 
         .vela-inp:focus {
           border-color: #0b84c6 !important;
+          box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18);
         }
 
         .vela-send {
-          width: 36px;
-          height: 36px;
+          width: 38px;
+          height: 38px;
           flex-shrink: 0;
-          border-radius: 10px;
+          border-radius: 12px;
           border: none;
-          background: #0b84c6;
-          color: #fff;
           cursor: pointer;
           display: flex;
           align-items: center;
           justify-content: center;
-          transition: opacity 0.15s;
+          transition: transform 0.15s, opacity 0.15s, box-shadow 0.15s;
           padding: 0;
         }
 
         .vela-send:hover {
-          opacity: 0.85;
+          transform: translateY(-1px);
+          opacity: 0.96;
         }
 
         .vela-send:disabled {
-          opacity: 0.4;
           cursor: default;
+          transform: none;
+          opacity: 1;
+        }
+
+        .vela-send:focus-visible,
+        .vela-close:focus-visible,
+        .vela-inp:focus-visible {
+          outline: 2px solid #7ed3fc;
+          outline-offset: 2px;
         }
 
         @media (max-width: 480px) {
