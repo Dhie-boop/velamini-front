@@ -14,23 +14,23 @@ type Testimonial = {
 
 const TESTIMONIALS: Testimonial[] = [
   {
-    name: "Sarah Muthoni",
+    name: "	Dhieu David",
     role: "CEO",
-    company: "TechStart Kenya",
+    company: "Bintraq Inc.",
     content: "Velamini transformed how we handle customer support. Our AI agent handles 80% of queries automatically, and customers love the instant responses.",
     rating: 5,
   },
   {
-    name: "David Okonkwo",
-    role: "Founder",
-    company: "GreenEnergy Africa",
+    name: "Gatete Jules",
+    role: "Co-Founder",
+    company: "coodic",
     content: "We created an AI twin of our lead engineer. Now clients get technical answers 24/7, even outside business hours. Game changer for our sales.",
     rating: 5,
   },
   {
-    name: "Amara Diallo",
-    role: "Marketing Director",
-    company: "RetailHub Rwanda",
+    name: "Akure Carine",
+    role: " Director",
+    company: "Dufatanye organization",
     content: "The embed widget increased our lead capture by 40%. Visitors chat with our AI and we get qualified leads while we sleep.",
     rating: 5,
   },
