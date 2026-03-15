@@ -65,7 +65,6 @@
     '#vela-panel.vl .vela-inp::placeholder{color:#6d8294}',
     '#vela-panel.vl .vela-bubble-bot{background:#fff;color:#102132;border:1px solid #dbe6ee}',
     '#vela-panel.vl .vela-bubble-usr{background:linear-gradient(180deg,#1297e3 0%,#0a79d6 100%);color:#fff;border:1px solid rgba(10,121,214,.24)}',
-    '#vela-panel.vl .vela-typing{color:#5f7688}',
     '#vela-panel.vl .vela-branding{color:#8aa0b3}',
     '#vela-panel.vl .vela-send{background:linear-gradient(180deg,#149ee7 0%,#0a7ad9 100%);color:#fff;box-shadow:0 8px 18px rgba(10,122,217,.22)}',
     '#vela-panel.vl .vela-send:disabled{background:#c6d7e5;color:#f8fbfe;box-shadow:none}',
@@ -78,7 +77,6 @@
     '#vela-panel.vd .vela-inp::placeholder{color:#7e9bb0}',
     '#vela-panel.vd .vela-bubble-bot{background:#122231;color:#ecf6ff;border:1px solid #284154}',
     '#vela-panel.vd .vela-bubble-usr{background:linear-gradient(180deg,#1aa4ee 0%,#0a7fdb 100%);color:#fff;border:1px solid rgba(255,255,255,.08)}',
-    '#vela-panel.vd .vela-typing{color:#89acc5}',
     '#vela-panel.vd .vela-branding{color:#51748d}',
     '#vela-panel.vd .vela-send{background:linear-gradient(180deg,#1aa4ee 0%,#0a7fdb 100%);color:#fff;box-shadow:0 8px 18px rgba(10,127,219,.26)}',
     '#vela-panel.vd .vela-send:disabled{background:#294253;color:#9bb3c6;box-shadow:none}',
@@ -101,8 +99,11 @@
     '.vela-bubble-bot,.vela-bubble-usr{padding:9px 13px;border-radius:12px;font-size:.83rem;line-height:1.55;word-break:break-word;font-family:inherit}',
     '.vela-bubble-bot{border-bottom-left-radius:4px}',
     '.vela-bubble-usr{border-bottom-right-radius:4px}',
-    '.vela-typing{font-size:.75rem;padding:6px 12px 2px;font-style:italic;opacity:.7;display:none}',
-    '.vela-typing.vela-show{display:block}',
+    '.vela-bubble-bot--typing{padding:10px 13px}',
+    '.vela-dots{display:inline-flex;align-items:center;gap:4px;padding:2px 0}',
+    '.vela-dot{width:5px;height:5px;border-radius:999px;background:#0a84da;display:inline-block;animation:vela-dot 1.3s ease-in-out infinite}',
+    '#vela-panel.vd .vela-dot{background:#38bdf8}',
+    '@keyframes vela-dot{0%,60%,100%{transform:translateY(0);opacity:.4}30%{transform:translateY(-4px);opacity:1}}',
     /* Footer */
     '.vela-footer{padding:10px 12px;display:flex;align-items:flex-end;gap:8px;flex-shrink:0}',
     '.vela-inp{flex:1;border-radius:12px;padding:9px 12px;font-size:.83rem;outline:none;resize:none;font-family:inherit;line-height:1.45;transition:border-color .15s,box-shadow .15s,background .15s;min-height:38px;max-height:96px}',
@@ -139,7 +140,6 @@
         '<button class="vela-close" aria-label="Close">&#10005;</button>' +
       '</div>' +
       '<div class="vela-msgs" id="vela-msgs"></div>' +
-      '<div class="vela-typing" id="vela-typing">' + agentName + ' is typing&#8230;</div>' +
       '<div class="vela-footer">' +
         '<textarea class="vela-inp" id="vela-inp" placeholder="Type a message\u2026" rows="1"></textarea>' +
         '<button class="vela-send" id="vela-send" aria-label="Send">' +
@@ -158,8 +158,8 @@
   var msgsEl   = d.getElementById('vela-msgs');
   var inpEl    = d.getElementById('vela-inp');
   var sendEl   = d.getElementById('vela-send');
-  var typingEl = d.getElementById('vela-typing');
   var closeEl  = panelEl.querySelector('.vela-close');
+  var typingRow = null;
 
   /* ── Apply / watch theme ─────────────────────────────────────── */
   function applyTheme() {
@@ -190,6 +190,29 @@
 
   function scrollBottom() {
     setTimeout(function () { msgsEl.scrollTop = msgsEl.scrollHeight; }, 40);
+  }
+
+  function showTyping() {
+    if (typingRow) return;
+    var row = d.createElement('div');
+    row.className = 'vela-row vela-row-bot';
+    row.innerHTML =
+      '<div class="vela-bubble-bot vela-bubble-bot--typing">' +
+        '<span class="vela-dots" aria-hidden="true">' +
+          '<span class="vela-dot" style="animation-delay:0s"></span>' +
+          '<span class="vela-dot" style="animation-delay:.2s"></span>' +
+          '<span class="vela-dot" style="animation-delay:.4s"></span>' +
+        '</span>' +
+      '</div>';
+    typingRow = row;
+    msgsEl.appendChild(row);
+    scrollBottom();
+  }
+
+  function hideTyping() {
+    if (!typingRow) return;
+    typingRow.remove();
+    typingRow = null;
   }
 
   /* ── Open / close panel ──────────────────────────────────────── */
@@ -230,8 +253,7 @@
 
     loading = true;
     sendEl.disabled = true;
-    typingEl.classList.add('vela-show');
-    scrollBottom();
+    showTyping();
 
     fetch(apiBase + '/api/agent/chat', {
       method: 'POST',
@@ -247,7 +269,7 @@
     })
       .then(function (r) { return r.json(); })
       .then(function (data) {
-        typingEl.classList.remove('vela-show');
+        hideTyping();
         loading = false;
         sendEl.disabled = false;
         if (data.reply) {
@@ -263,7 +285,7 @@
         scrollBottom();
       })
       .catch(function () {
-        typingEl.classList.remove('vela-show');
+        hideTyping();
         loading = false;
         sendEl.disabled = false;
         addMsg('bot', 'Network error. Please check your connection and try again.');

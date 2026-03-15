@@ -23,6 +23,16 @@ const getInitials = (name: string) => {
   return initials || "AI";
 };
 
+function TypingDots() {
+  return (
+    <span className="vela-dots" aria-hidden="true">
+      {[0, 1, 2].map((i) => (
+        <span key={i} className="vela-dot" style={{ animationDelay: `${i * 0.2}s` }} />
+      ))}
+    </span>
+  );
+}
+
 export default function AgentChatWidget({
   agentKey,
   agentName = "AI Agent",
@@ -130,10 +140,15 @@ export default function AgentChatWidget({
               </div>
             );
           })}
+          {loading && (
+            <div className="vela-row vela-row-bot">
+              <div className="vela-bubble-bot vela-bubble-bot--typing">
+                <TypingDots />
+              </div>
+            </div>
+          )}
           <div ref={bottomRef} />
         </div>
-
-        <div className={`vela-typing ${loading ? "vela-show" : ""}`}>{agentName} is typing…</div>
 
         <div className="vela-footer">
           <textarea
@@ -164,6 +179,18 @@ export default function AgentChatWidget({
       </div>
 
       <style jsx>{`
+        @keyframes vela-dot {
+          0%, 60%, 100% {
+            transform: translateY(0);
+            opacity: 0.4;
+          }
+
+          30% {
+            transform: translateY(-4px);
+            opacity: 1;
+          }
+        }
+
         .vela-react,
         .vela-react :global(*) {
           box-sizing: border-box;
@@ -271,10 +298,6 @@ export default function AgentChatWidget({
           border: 1px solid rgba(10, 121, 214, 0.24);
         }
 
-        .vl .vela-typing {
-          color: #5f7688;
-        }
-
         .vl .vela-send {
           background: linear-gradient(180deg, #149ee7 0%, #0a7ad9 100%);
           color: #fff;
@@ -327,10 +350,6 @@ export default function AgentChatWidget({
           background: linear-gradient(180deg, #1aa4ee 0%, #0a7fdb 100%);
           color: #fff;
           border: 1px solid rgba(255, 255, 255, 0.08);
-        }
-
-        .vd .vela-typing {
-          color: #89acc5;
         }
 
         .vd .vela-send {
@@ -456,16 +475,32 @@ export default function AgentChatWidget({
           border-bottom-right-radius: 4px;
         }
 
-        .vela-typing {
-          font-size: 0.75rem;
-          padding: 6px 12px 2px;
-          font-style: italic;
-          opacity: 0.7;
-          display: none;
+        .vela-bubble-bot--typing {
+          padding: 10px 13px;
         }
 
-        .vela-show {
-          display: block;
+        .vela-dots {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          padding: 2px 0;
+        }
+
+        .vela-dot {
+          width: 5px;
+          height: 5px;
+          border-radius: 999px;
+          background: #14a7ff;
+          display: inline-block;
+          animation: vela-dot 1.3s ease-in-out infinite;
+        }
+
+        .vd .vela-dot {
+          background: #38bdf8;
+        }
+
+        .vl .vela-dot {
+          background: #0a84da;
         }
 
         .vela-footer {
