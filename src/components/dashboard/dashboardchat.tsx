@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Plus, Bot, User as UserIcon } from "lucide-react";
+import { Send, Plus, Bot, User as UserIcon, Trash2 } from "lucide-react";
 
 type Message = { id: string; role: "user" | "assistant"; content: string; createdAt: string };
 
@@ -135,6 +135,22 @@ export default function DashboardChat({ user, knowledgeBase }: DashboardChatProp
   const openSession = async (sessionId: string) => {
     if (sessionId === activeSessionId) return;
     await loadHistory(sessionId);
+  };
+
+  const deleteSession = async (e: React.MouseEvent, sessionId: string) => {
+    e.stopPropagation();
+    try {
+      const res = await fetch(`/api/chat/sessions/${encodeURIComponent(sessionId)}`, { method: "DELETE" });
+      if (!res.ok && res.status !== 204) throw new Error("Delete failed");
+      if (activeSessionId === sessionId) {
+        setActiveSessionId(null);
+        setMessages([]);
+        localStorage.removeItem(activeSessionStorageKey);
+      }
+      void loadSessions();
+    } catch (deleteError) {
+      console.error("Failed to delete session", deleteError);
+    }
   };
 
   const sendMessage = async () => {
@@ -280,6 +296,19 @@ Respond concisely and helpfully.`;
           font-size: .72rem; color: var(--c-muted);
           padding: 6px 0;
         }
+        .dc-history-del {
+          position: absolute; top: 5px; right: 5px;
+          width: 20px; height: 20px; border-radius: 5px;
+          border: none; background: transparent; cursor: pointer;
+          display: flex; align-items: center; justify-content: center;
+          color: var(--c-muted); opacity: 0;
+          transition: opacity .14s, color .14s, background .14s;
+          font-family: inherit;
+        }
+        .dc-history-del:hover { color: #ef4444; background: rgba(239,68,68,.1); }
+        .dc-history-del svg { width: 11px; height: 11px; }
+        .dc-history-item { position: relative; }
+        .dc-history-item:hover .dc-history-del { opacity: 1; }
 
         /* Messages */
         .dc-msgs {
@@ -428,6 +457,14 @@ Respond concisely and helpfully.`;
                     <span>{session.messageCount} msgs</span>
                     <span>{new Date(session.updatedAt).toLocaleDateString([], { month: "short", day: "numeric" })}</span>
                   </div>
+                  <button
+                    className="dc-history-del"
+                    onClick={(e) => { void deleteSession(e, session.sessionId); }}
+                    title="Delete conversation"
+                    type="button"
+                  >
+                    <Trash2 size={11} />
+                  </button>
                 </button>
               ))}
             </div>
