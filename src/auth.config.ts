@@ -65,9 +65,12 @@ export const authConfig: NextAuthConfig = {
         onboardingComplete?: boolean;
       };
 
-      if (token.id) sessionUser.id = token.id as string;
-      if (token.isAdminAuth) sessionUser.isAdminAuth = token.isAdminAuth as boolean;
-      if (token.status) sessionUser.status = token.status as string;
+      sessionUser.id = token.id as string | undefined;
+      sessionUser.email = typeof token.email === "string" ? token.email : null;
+      sessionUser.name = typeof token.name === "string" ? token.name : null;
+      sessionUser.image = typeof token.picture === "string" ? token.picture : null;
+      sessionUser.isAdminAuth = token.isAdminAuth === true;
+      sessionUser.status = token.status as string | undefined;
       sessionUser.emailVerified = token.emailVerified ? String(token.emailVerified) : null;
       sessionUser.accountType = token.accountType as string | undefined;
       sessionUser.onboardingComplete = token.onboardingComplete as boolean | undefined;

@@ -158,12 +158,11 @@ export const { handlers, signIn, signOut, auth, update: updateSession } = NextAu
     },
 
     async session({ session, token }) {
-      if (session.user && token.id) {
-        session.user.id = token.id as string;
-      }
-      if (token.isAdminAuth) {
-        session.user.isAdminAuth = true;
-      }
+      session.user.id = token.id as string;
+      session.user.email = typeof token.email === "string" ? token.email : null;
+      session.user.name = typeof token.name === "string" ? token.name : null;
+      session.user.image = typeof token.picture === "string" ? token.picture : null;
+      session.user.isAdminAuth = token.isAdminAuth === true;
       session.user.status = token.status as string | undefined;
       if (token.emailVerified instanceof Date) {
         session.user.emailVerified = token.emailVerified;
