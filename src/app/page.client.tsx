@@ -126,7 +126,7 @@ export default function Home() {
   }, [isDarkMode]);
 
   useEffect(() => {
-    const key = process.env.NEXT_PUBLIC_EMBED_AGENT_KEY;
+    const key = process.env.NEXT_PUBLIC_EMBED_AGENT_KEY || process.env.NEXT_PUBLIC_EMBED_AGENT_KEY_DEMO;
     if (!key || document.getElementById("vela-widget")) return;
     const embedScriptSrc = `${PUBLIC_APP_URL}/embed/agent.js`;
     const s = Object.assign(document.createElement("script"), {

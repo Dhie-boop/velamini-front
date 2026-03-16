@@ -5,11 +5,11 @@ import { motion } from "framer-motion";
 import { Send, Sparkles, MessageSquare, Wifi, Battery, Signal } from "lucide-react";
 import { useAgentChat } from "@/hooks/useAgentChat";
 
-const GREETING = "Hey! I'm Codi, Coodic's AI assistant. Ask me anything about what we do 👋";
+const GREETING = "Hey! I'm vela, Velamini's AI assistant. Ask me anything about what we do 👋";
 
 const SUGGESTIONS = [
-  "What does Coodic do?",
-  "When is Coodic funded?",
+  "What does Velamini do?",
+  "What is Velamini's mission?",
 ];
 
 function nowTime() {
@@ -366,7 +366,7 @@ export default function LandingDemo() {
               <div className="ld-chathead">
                 <div className="ld-av">C</div>
                 <div style={{ flex:1 }}>
-                  <div className="ld-agname">codi</div>
+                  <div className="ld-agname">vela</div>
                   <div className="ld-agstatus">
                     <div className="ld-greendot"/>
                     <span>Online now</span>
@@ -433,7 +433,7 @@ export default function LandingDemo() {
                   value={input}
                   onChange={e => setInput(e.target.value)}
                   onKeyDown={handleKey}
-                  placeholder="Message Codi…"
+                  placeholder="Message vela…"
                   disabled={loading}
                 />
                 <button
