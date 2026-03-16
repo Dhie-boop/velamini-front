@@ -90,13 +90,16 @@ export const { handlers, signIn, signOut, auth, update: updateSession } = NextAu
         statusCheckedAt?: number;
       };
       const now = Date.now();
-      // When user signs in, add their database ID to the token
+      // On every fresh sign-in, fully replace identity fields so we don't
+      // leak stale admin/user state across account switches in one browser.
       if (user) {
         token.id = user.id;
-      }
-      // Mark as admin-authenticated only when using admin credentials
-      if (account?.provider === "admin-credentials") {
-        token.isAdminAuth = true;
+        token.email = user.email;
+        token.name = user.name;
+        token.picture = user.image;
+        token.isAdminAuth = account?.provider === "admin-credentials";
+        jwtToken.idLookupAt = now;
+        jwtToken.statusCheckedAt = 0;
       }
       // If token doesn't have ID yet, fetch it from database
       try {

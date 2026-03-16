@@ -40,7 +40,8 @@ function normalizeDashboardPath(pathname: string): string {
 }
 
 export const authConfig: NextAuthConfig = {
-  secret: process.env.AUTH_SECRET, // Added this line
+  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
+  trustHost: true,
   basePath: "/api/auth",
   providers: [
     Google({
