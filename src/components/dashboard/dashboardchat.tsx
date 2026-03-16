@@ -1,9 +1,16 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Send, Plus, Bot, User as UserIcon } from "lucide-react";
 
-type Message = { id: number; role: "user" | "assistant"; content: string };
+type Message = { id: string; role: "user" | "assistant"; content: string; createdAt: string };
+
+type SessionSummary = {
+  sessionId: string;
+  title: string;
+  messageCount: number;
+  updatedAt: string;
+};
 
 interface DashboardChatProps {
   user?: { id?: string; name?: string | null; email?: string | null; image?: string | null };
@@ -11,27 +18,102 @@ interface DashboardChatProps {
 }
 
 export default function DashboardChat({ user, knowledgeBase }: DashboardChatProps) {
-  const [input, setInput]       = useState("");
+  const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
+  const [sessions, setSessions] = useState<SessionSummary[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
-  const bottomRef               = useRef<HTMLDivElement>(null);
-  const textareaRef             = useRef<HTMLTextAreaElement>(null);
-  const storageKey = `v_dash_chat:${user?.id || user?.email || "anon"}`;
+  const [isLoadingSessions, setIsLoadingSessions] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const activeSessionStorageKey = `v_dash_chat_active:${user?.id || user?.email || "anon"}`;
 
-  // Persist chat
-  useEffect(() => {
+  const createMessage = useCallback((role: "user" | "assistant", content: string): Message => ({
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    role,
+    content,
+    createdAt: new Date().toISOString(),
+  }), []);
+
+  const loadHistory = useCallback(async (sessionId: string) => {
+    setIsLoadingHistory(true);
     try {
-      const saved = localStorage.getItem(storageKey);
-      if (saved) setMessages(JSON.parse(saved));
-      else setMessages([]);
-    } catch {}
-  }, [storageKey]);
-  useEffect(() => {
+      const res = await fetch(`/api/chat/history?sessionId=${encodeURIComponent(sessionId)}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Failed to load chat history");
+
+      const mapped: Message[] = (Array.isArray(data?.messages) ? data.messages : []).map((msg: {
+        id?: string;
+        role: "user" | "assistant";
+        content: string;
+        createdAt: string;
+      }) => ({
+        id: msg.id ?? `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        role: msg.role,
+        content: msg.content,
+        createdAt: msg.createdAt,
+      }));
+
+      setActiveSessionId(sessionId);
+      setMessages(mapped);
+      localStorage.setItem(activeSessionStorageKey, sessionId);
+    } catch (historyError) {
+      console.error("Failed to load dashboard chat history", historyError);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  }, [activeSessionStorageKey]);
+
+  const loadSessions = useCallback(async (preferredSessionId?: string | null) => {
+    setIsLoadingSessions(true);
     try {
-      if (messages.length > 0) localStorage.setItem(storageKey, JSON.stringify(messages));
-      else localStorage.removeItem(storageKey);
-    } catch {}
-  }, [messages, storageKey]);
+      const res = await fetch("/api/chat/sessions?limit=30&page=1");
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data?.error || "Failed to load sessions");
+
+      const nextSessions: SessionSummary[] = Array.isArray(data?.sessions)
+        ? data.sessions.map((session: {
+            sessionId: string;
+            title?: string;
+            messageCount?: number;
+            updatedAt: string;
+          }) => ({
+            sessionId: session.sessionId,
+            title: session.title || "New chat",
+            messageCount: session.messageCount ?? 0,
+            updatedAt: session.updatedAt,
+          }))
+        : [];
+
+      setSessions(nextSessions);
+
+      if (!nextSessions.length) {
+        setMessages([]);
+        setActiveSessionId(null);
+        localStorage.removeItem(activeSessionStorageKey);
+        return;
+      }
+
+      const storedSessionId = localStorage.getItem(activeSessionStorageKey);
+      const targetSessionId = preferredSessionId
+        || (storedSessionId && nextSessions.some((session) => session.sessionId === storedSessionId) ? storedSessionId : null)
+        || nextSessions[0].sessionId;
+
+      if (targetSessionId) {
+        void loadHistory(targetSessionId);
+      }
+    } catch (sessionError) {
+      console.error("Failed to load dashboard chat sessions", sessionError);
+    } finally {
+      setIsLoadingSessions(false);
+    }
+  }, [activeSessionStorageKey, loadHistory]);
+
+  useEffect(() => {
+    void loadSessions();
+  }, [loadSessions]);
 
   // Auto scroll
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, isTyping]);
@@ -43,11 +125,23 @@ export default function DashboardChat({ user, knowledgeBase }: DashboardChatProp
     e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px";
   };
 
-  const handleNew = () => { setMessages([]); setInput(""); };
+  const handleNew = () => {
+    setMessages([]);
+    setInput("");
+    setActiveSessionId(null);
+    localStorage.removeItem(activeSessionStorageKey);
+  };
+
+  const openSession = async (sessionId: string) => {
+    if (sessionId === activeSessionId) return;
+    await loadHistory(sessionId);
+  };
 
   const sendMessage = async () => {
-    if (!input.trim()) return;
-    const userMsg: Message = { id: Date.now(), role: "user", content: input.trim() };
+    const content = input.trim();
+    if (!content || isTyping || isLoadingHistory) return;
+
+    const userMsg = createMessage("user", content);
     setMessages(p => [...p, userMsg]);
     setInput("");
     if (textareaRef.current) { textareaRef.current.style.height = "auto"; }
@@ -73,16 +167,26 @@ Respond concisely and helpfully.`;
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: userMsg.content,
-          history: messages.slice(-6).map(m => ({ role: m.role, content: m.content })),
+          history: [...messages, userMsg].slice(-10).map(m => ({ role: m.role, content: m.content })),
+          sessionId: activeSessionId ?? undefined,
           knowledgeBase: knowledgeBase || null,
           systemPrompt,
         }),
       });
-      if (!res.ok) throw new Error("Request failed");
       const data = await res.json();
-      setMessages(p => [...p, { id: Date.now() + 1, role: "assistant", content: data.reply ?? data.text ?? data.message ?? "Sorry, I couldn't respond." }]);
+      if (!res.ok) throw new Error(data?.error || "Request failed");
+
+      const returnedSessionId = typeof data?.sessionId === "string" ? data.sessionId : activeSessionId;
+      if (returnedSessionId && returnedSessionId !== activeSessionId) {
+        setActiveSessionId(returnedSessionId);
+        localStorage.setItem(activeSessionStorageKey, returnedSessionId);
+      }
+
+      setMessages(p => [...p, createMessage("assistant", data.reply ?? data.text ?? data.message ?? "Sorry, I couldn't respond.")]);
+
+      void loadSessions(returnedSessionId ?? null);
     } catch {
-      setMessages(p => [...p, { id: Date.now() + 1, role: "assistant", content: "Connection issue. Please try again." }]);
+      setMessages(p => [...p, createMessage("assistant", "Connection issue. Please try again.")]);
     } finally { setIsTyping(false); }
   };
 
@@ -131,6 +235,51 @@ Respond concisely and helpfully.`;
         }
         .dc-new-btn:hover { color: var(--c-accent); border-color: var(--c-accent); background: var(--c-accent-soft); }
         .dc-new-btn svg { width: 12px; height: 12px; }
+
+        /* Session history */
+        .dc-history {
+          padding: 12px 14px;
+          border-bottom: 1px solid var(--c-border);
+          background: var(--c-surface);
+        }
+        @media(min-width:600px){ .dc-history { padding: 12px 24px; } }
+        .dc-history-head {
+          display: flex; align-items: center; justify-content: space-between;
+          margin-bottom: 8px;
+          font-size: .72rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+          color: var(--c-muted);
+        }
+        .dc-history-list {
+          display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px;
+          scrollbar-width: thin; scrollbar-color: var(--c-border) transparent;
+        }
+        .dc-history-list::-webkit-scrollbar { height: 3px; }
+        .dc-history-list::-webkit-scrollbar-thumb { background: var(--c-border); border-radius: 3px; }
+        .dc-history-item {
+          min-width: 180px; max-width: 240px; text-align: left;
+          border: 1px solid var(--c-border); border-radius: 10px;
+          background: var(--c-surface-2); color: var(--c-text);
+          padding: 8px 10px; cursor: pointer; transition: all .14s;
+          font-family: inherit;
+        }
+        .dc-history-item:hover { border-color: var(--c-accent); }
+        .dc-history-item--active {
+          border-color: var(--c-accent);
+          background: var(--c-accent-soft);
+        }
+        .dc-history-title {
+          font-size: .75rem; font-weight: 700; line-height: 1.4;
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .dc-history-meta {
+          margin-top: 4px;
+          font-size: .66rem; color: var(--c-muted);
+          display: flex; gap: 8px;
+        }
+        .dc-history-state {
+          font-size: .72rem; color: var(--c-muted);
+          padding: 6px 0;
+        }
 
         /* Messages */
         .dc-msgs {
@@ -257,9 +406,43 @@ Respond concisely and helpfully.`;
           <button className="dc-new-btn" onClick={handleNew}><Plus size={12} /> New chat</button>
         </div>
 
+        <div className="dc-history">
+          <div className="dc-history-head">
+            <span>Recent chats</span>
+            <span>{sessions.length}</span>
+          </div>
+          {isLoadingSessions ? (
+            <div className="dc-history-state">Loading conversations...</div>
+          ) : sessions.length === 0 ? (
+            <div className="dc-history-state">No previous chats yet. Start your first one.</div>
+          ) : (
+            <div className="dc-history-list">
+              {sessions.map((session) => (
+                <button
+                  key={session.sessionId}
+                  className={`dc-history-item${activeSessionId === session.sessionId ? " dc-history-item--active" : ""}`}
+                  onClick={() => { void openSession(session.sessionId); }}
+                >
+                  <div className="dc-history-title">{session.title}</div>
+                  <div className="dc-history-meta">
+                    <span>{session.messageCount} msgs</span>
+                    <span>{new Date(session.updatedAt).toLocaleDateString([], { month: "short", day: "numeric" })}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Messages */}
         <div className="dc-msgs">
-          {messages.length === 0 ? (
+          {isLoadingHistory ? (
+            <div className="dc-empty">
+              <img src="/logo.png" alt="AI" className="dc-empty-av" />
+              <div className="dc-empty-title">Loading chat history</div>
+              <div className="dc-empty-sub">Please wait while we bring your previous messages.</div>
+            </div>
+          ) : messages.length === 0 ? (
             <div className="dc-empty">
               <img src="/logo.png" alt="AI" className="dc-empty-av" />
               <div className="dc-empty-title">Start a conversation</div>
@@ -268,7 +451,7 @@ Respond concisely and helpfully.`;
           ) : (
             messages.map(msg => {
               const isUser = msg.role === "user";
-              const t = new Date(msg.id).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+              const t = new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
               return (
                 <div key={msg.id} className={`dc-row ${isUser ? "dc-row--user" : "dc-row--ai"}`}>
                   <div className="dc-av-wrap">
@@ -313,7 +496,7 @@ Respond concisely and helpfully.`;
               placeholder="Ask anything…"
               rows={1}
             />
-            <button className="dc-send" onClick={sendMessage} disabled={!input.trim()}>
+            <button className="dc-send" onClick={sendMessage} disabled={!input.trim() || isTyping || isLoadingHistory}>
               <Send size={14} />
             </button>
           </div>
