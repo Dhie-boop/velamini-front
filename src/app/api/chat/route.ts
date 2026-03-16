@@ -44,6 +44,7 @@ const chatRequestSchema = z.object({
   message: z.string().min(1).max(2000),
   history: z.array(chatHistoryItemSchema).max(100).default([]),
   useLocalKnowledge: z.boolean().optional().default(false),
+  sessionId: z.string().min(1).max(191).optional(),
 });
 
 export async function POST(req: Request) {
@@ -57,7 +58,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const { message, history = [], useLocalKnowledge = false } = parsed.data;
+    const { message, history = [], useLocalKnowledge = false, sessionId } = parsed.data;
     const apiKey = process.env.DEEPSEEK_API_KEY;
 
     if (!apiKey) {
@@ -280,17 +281,30 @@ export async function POST(req: Request) {
     }
 
     // 4) SAVE TO DB
-    if (process.env.DATABASE_URL) {
+    let persistedSessionId: string | undefined;
+
+    if (process.env.DATABASE_URL && finalContent) {
       try {
         log("/api/chat", "Persisting chat messages");
-        const chat = await prisma.chat.findFirst({ where: { userId: authenticatedUserId ?? "anon" } })
-          || await prisma.chat.create({ data: { userId: authenticatedUserId ?? "anon" } });
+        const ownerId = authenticatedUserId ?? "anon";
+
+        const existingChat = sessionId
+          ? await prisma.chat.findFirst({ where: { id: sessionId, userId: ownerId }, select: { id: true } })
+          : null;
+
+        const chat = existingChat
+          ? existingChat
+          : await prisma.chat.create({ data: { userId: ownerId }, select: { id: true } });
+
+        persistedSessionId = chat.id;
+
         await prisma.message.createMany({
           data: [
             { chatId: chat.id, role: "user", content: message },
             { chatId: chat.id, role: "assistant", content: finalContent || "" },
           ],
         });
+        await prisma.chat.update({ where: { id: chat.id }, data: { updatedAt: new Date() } });
         // Increment personal usage counters
         if (authenticatedUserId) {
           await prisma.user.update({
@@ -308,7 +322,7 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({ text: finalContent });
+    return NextResponse.json({ text: finalContent, sessionId: persistedSessionId });
 
   } catch (error: unknown) {
     logError("/api/chat", "POST error", { err: error instanceof Error ? error.message : String(error) });
