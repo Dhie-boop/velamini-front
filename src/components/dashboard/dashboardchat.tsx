@@ -141,7 +141,10 @@ export default function DashboardChat({ user, knowledgeBase }: DashboardChatProp
     e.stopPropagation();
     try {
       const res = await fetch(`/api/chat/sessions/${encodeURIComponent(sessionId)}`, { method: "DELETE" });
-      if (!res.ok && res.status !== 204) throw new Error("Delete failed");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error ?? `HTTP ${res.status}`);
+      }
       if (activeSessionId === sessionId) {
         setActiveSessionId(null);
         setMessages([]);
@@ -276,7 +279,7 @@ Respond concisely and helpfully.`;
           border: 1px solid var(--c-border); border-radius: 10px;
           background: var(--c-surface-2); color: var(--c-text);
           padding: 8px 10px; cursor: pointer; transition: all .14s;
-          font-family: inherit;
+          user-select: none;
         }
         .dc-history-item:hover { border-color: var(--c-accent); }
         .dc-history-item--active {
@@ -447,10 +450,13 @@ Respond concisely and helpfully.`;
           ) : (
             <div className="dc-history-list">
               {sessions.map((session) => (
-                <button
+                <div
                   key={session.sessionId}
+                  role="button"
+                  tabIndex={0}
                   className={`dc-history-item${activeSessionId === session.sessionId ? " dc-history-item--active" : ""}`}
                   onClick={() => { void openSession(session.sessionId); }}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") void openSession(session.sessionId); }}
                 >
                   <div className="dc-history-title">{session.title}</div>
                   <div className="dc-history-meta">
@@ -465,7 +471,7 @@ Respond concisely and helpfully.`;
                   >
                     <Trash2 size={11} />
                   </button>
-                </button>
+                </div>
               ))}
             </div>
           )}
