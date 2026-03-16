@@ -1,7 +1,7 @@
 "use client";
 
 import { useEmailVerify } from "@/hooks/useEmailVerify";
-import { signIn } from "@/lib/auth-client";
+import { signIn, signOut } from "@/lib/auth-client";
 import { ChevronRight, Eye, EyeOff, Building2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -67,7 +67,12 @@ export default function OrganizationSignupPage() {
         setLoading(false);
         return;
       }
-      
+      try {
+        localStorage.setItem("pending_verify_email", adminEmail.toLowerCase().trim());
+      } catch {}
+
+      // Clear any existing session before auto-signing into the new account.
+      await signOut({ redirect: false });
       // Auto sign in using credentials provider
       const signInRes = await signIn("credentials", {
         email: adminEmail.toLowerCase().trim(),

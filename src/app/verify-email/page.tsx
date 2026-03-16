@@ -25,6 +25,7 @@ function VerifyEmailPageInner() {
   const router       = useRouter();
   const searchParams = useSearchParams();
   const { data: session, status, update } = useSession();
+  const [targetEmail, setTargetEmail] = useState<string | null>(null);
 
   const typeParam = searchParams.get("type");
   const nextPath = useMemo(() => {
@@ -49,7 +50,11 @@ function VerifyEmailPageInner() {
     setErrorMsg("");
 
     try {
-      const res  = await fetch("/api/auth/send-otp", { method: "POST" });
+      const res  = await fetch("/api/auth/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(targetEmail ? { email: targetEmail } : {}),
+      });
       const data = await res.json();
 
       if (data.alreadyVerified) {
@@ -80,7 +85,7 @@ function VerifyEmailPageInner() {
       setErrorMsg("Network error. Please check your connection and try again.");
       setPageState("error");
     }
-  }, [nextPath, router, update]);
+  }, [nextPath, router, targetEmail, update]);
 
   /* ── Verify OTP ─────────────────────────────────────────────── */
   const verifyOtp = useCallback(async (code: string) => {
@@ -91,7 +96,7 @@ function VerifyEmailPageInner() {
       const res  = await fetch("/api/auth/verify-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code }),
+        body: JSON.stringify(targetEmail ? { code, email: targetEmail } : { code }),
       });
       const data = await res.json();
 
@@ -106,6 +111,9 @@ function VerifyEmailPageInner() {
 
       setPageState("success");
       redirectingRef.current = true;
+      try {
+        localStorage.removeItem("pending_verify_email");
+      } catch {}
       // Pass a payload to force NextAuth to actually POST to /api/auth/session
       await update({ _force: Date.now() });
       // Hard navigation required — soft nav reuses stale in-memory session;
@@ -115,7 +123,21 @@ function VerifyEmailPageInner() {
       setErrorMsg("Network error. Please try again.");
       setPageState("waiting");
     }
-  }, [nextPath, router, update]);
+  }, [nextPath, router, targetEmail, update]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const storedEmail = localStorage.getItem("pending_verify_email");
+      if (storedEmail) {
+        setTargetEmail(storedEmail.toLowerCase());
+        return;
+      }
+    } catch {}
+    if (session?.user?.email) {
+      setTargetEmail(session.user.email.toLowerCase());
+    }
+  }, [session?.user?.email]);
 
   /* ── Redirect if unauthenticated ───────────────────────────── */
   useEffect(() => {
@@ -131,24 +153,27 @@ function VerifyEmailPageInner() {
   /* ── Redirect if already verified ──────────────────────────── */
   useEffect(() => {
     if (status !== "authenticated") return;
-    if (session?.user?.emailVerified) {
+    const sessionEmail = session?.user?.email?.toLowerCase() ?? null;
+    const usingDifferentTargetEmail = !!targetEmail && !!sessionEmail && targetEmail !== sessionEmail;
+    if (session?.user?.emailVerified && !usingDifferentTargetEmail) {
       redirectingRef.current = true;
       // Hard navigation so the middleware reads the updated JWT cookie.
       window.location.href = nextPath;
     }
-  }, [nextPath, router, session?.user?.emailVerified, status]);
+  }, [nextPath, router, session?.user?.email, session?.user?.emailVerified, status, targetEmail]);
 
   /* ── Auto-send OTP once on mount ───────────────────────────── */
   useEffect(() => {
     if (
       status !== "authenticated" ||
-      session?.user?.emailVerified ||
+      (session?.user?.emailVerified &&
+        (!targetEmail || targetEmail === (session.user.email?.toLowerCase() ?? null))) ||
       requestedOtpRef.current ||
       redirectingRef.current
     ) return;
     const t = window.setTimeout(() => void sendOtp(), 0);
     return () => window.clearTimeout(t);
-  }, [sendOtp, session?.user?.emailVerified, status]);
+  }, [sendOtp, session?.user?.email, session?.user?.emailVerified, status, targetEmail]);
 
   /* ── Cooldown countdown ─────────────────────────────────────── */
   useEffect(() => {
@@ -190,8 +215,8 @@ function VerifyEmailPageInner() {
     if (e.key === "ArrowRight" && index < 5)                inputsRef.current[index + 1]?.focus();
   }
 
-  const maskedEmail = session?.user?.email
-    ? session.user.email.replace(/(.{2}).*(@.*)/, "$1****$2")
+  const maskedEmail = (targetEmail ?? session?.user?.email)
+    ? (targetEmail ?? session?.user?.email ?? "").replace(/(.{2}).*(@.*)/, "$1****$2")
     : "your email";
 
   const isBlocked = pageState === "sending" || pageState === "verifying" || status !== "authenticated";

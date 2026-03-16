@@ -1,6 +1,6 @@
 "use client";
 
-import { signIn } from "@/lib/auth-client";
+import { signIn, signOut } from "@/lib/auth-client";
 import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import Link from "next/link";
@@ -91,7 +91,9 @@ function SignInContent() {
 
   const handleGoogleSignIn = () => {
     setIsSigningIn(true);
-    signIn("google", { callbackUrl });
+    void signOut({ redirect: false }).finally(() => {
+      void signIn("google", { callbackUrl });
+    });
   };
 
   const handleCredentialsSignIn = async (e: React.FormEvent) => {
@@ -103,6 +105,10 @@ function SignInContent() {
     }
 
     setCredentialsLoading(true);
+    try {
+      localStorage.setItem("pending_verify_email", email.toLowerCase().trim());
+    } catch {}
+    await signOut({ redirect: false });
     const result = await signIn("credentials", {
       email: email.toLowerCase().trim(),
       password,

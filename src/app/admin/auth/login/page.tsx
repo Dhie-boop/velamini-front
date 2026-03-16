@@ -1,6 +1,6 @@
 "use client";
 
-import { signIn, useSession } from "@/lib/auth-client";
+import { signIn, signOut, useSession } from "@/lib/auth-client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, Suspense } from "react";
 import { ShieldCheck, Eye, EyeOff, Lock, Mail, AlertCircle, Moon, Sun, CheckCircle2 } from "lucide-react";
@@ -68,6 +68,7 @@ function AdminLoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(""); setLoading(true);
+    await signOut({ redirect: false });
     const result = await signIn("admin-credentials", {
       email: email.trim().toLowerCase(), password, redirect: false,
     });

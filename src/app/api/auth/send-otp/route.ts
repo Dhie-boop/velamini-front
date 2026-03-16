@@ -9,25 +9,36 @@ import { canSendResendEmail, sendOtpEmail } from "@/lib/resend-email";
 const OTP_EXPIRY_MINUTES = 15;
 const RESEND_COOLDOWN_SECONDS = 60;
 
-export async function POST() {
+export async function POST(req: Request) {
   try {
     const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
+    let requestedEmail: string | null = null;
+    try {
+      const body = (await req.json()) as { email?: string };
+      if (typeof body?.email === "string" && body.email.trim()) {
+        requestedEmail = body.email.trim().toLowerCase();
+      }
+    } catch {
+      // Allow empty POST bodies for the existing flow.
     }
 
-    if (!session.user.email) {
-      return NextResponse.json({ error: "Your account does not have an email address." }, { status: 400 });
+    if (!session?.user?.id && !requestedEmail) {
+      return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
     }
 
     if (!canSendResendEmail()) {
       return NextResponse.json({ error: "Email delivery is not configured yet." }, { status: 500 });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { emailVerified: true, email: true, name: true },
-    });
+    const user = requestedEmail
+      ? await prisma.user.findUnique({
+          where: { email: requestedEmail },
+          select: { id: true, emailVerified: true, email: true, name: true },
+        })
+      : await prisma.user.findUnique({
+          where: { id: session!.user.id },
+          select: { id: true, emailVerified: true, email: true, name: true },
+        });
 
     if (!user?.email) {
       return NextResponse.json({ error: "User not found." }, { status: 404 });
@@ -40,7 +51,7 @@ export async function POST() {
 
     const recentToken = await prisma.verifyToken.findFirst({
       where: {
-        userId: session.user.id,
+        userId: user.id,
         createdAt: {
           gte: new Date(Date.now() - RESEND_COOLDOWN_SECONDS * 1000),
         },
@@ -59,14 +70,14 @@ export async function POST() {
       );
     }
 
-    await prisma.verifyToken.deleteMany({ where: { userId: session.user.id } });
+    await prisma.verifyToken.deleteMany({ where: { userId: user.id } });
 
     const code = String(crypto.randomInt(100000, 1000000));
     const token = crypto.createHash("sha256").update(code).digest("hex");
 
     await prisma.verifyToken.create({
       data: {
-        userId: session.user.id,
+        userId: user.id,
         email: user.email,
         token,
         expiresAt: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000),
@@ -78,7 +89,7 @@ export async function POST() {
       name: user.name || "there",
       code,
       expiresMinutes: OTP_EXPIRY_MINUTES,
-      userId: session.user.id,
+      userId: user.id,
     });
 
     return NextResponse.json({

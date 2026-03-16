@@ -1,7 +1,7 @@
 "use client";
 
 import { useEmailVerify } from "@/hooks/useEmailVerify";
-import { signIn } from "@/lib/auth-client";
+import { signIn, signOut } from "@/lib/auth-client";
 import { ChevronRight, Eye, EyeOff, User } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -25,7 +25,9 @@ export default function PersonalSignupPage() {
 
   const handleGoogleSignIn = () => {
     setLoading(true);
-    signIn("google", { callbackUrl: "/verify-email?type=personal" });
+    void signOut({ redirect: false }).finally(() => {
+      void signIn("google", { callbackUrl: "/verify-email?type=personal" });
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -54,7 +56,12 @@ export default function PersonalSignupPage() {
         setLoading(false);
         return;
       }
-      
+      try {
+        localStorage.setItem("pending_verify_email", email.toLowerCase().trim());
+      } catch {}
+
+      // Clear any existing session before auto-signing into the new account.
+      await signOut({ redirect: false });
       // Auto sign in using credentials provider
       const signInRes = await signIn("credentials", {
         email: email.toLowerCase().trim(),

@@ -1,5 +1,5 @@
 "use client";
-import { signIn } from "@/lib/auth-client";
+import { signIn, signOut } from "@/lib/auth-client";
 import { useEmailVerify } from "@/hooks/useEmailVerify";
 import { motion } from "framer-motion";
 import { Eye, EyeOff, Moon, Sparkles, Sun, UserRound } from "lucide-react";
@@ -87,8 +87,10 @@ function SignupContent() {
 
       try {
         localStorage.setItem("ob_account_type", "personal");
+        localStorage.setItem("pending_verify_email", email.toLowerCase().trim());
       } catch {}
 
+      await signOut({ redirect: false });
       const signInRes = await signIn("credentials", {
         email: email.toLowerCase().trim(),
         password,

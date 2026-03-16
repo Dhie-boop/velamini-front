@@ -11,19 +11,25 @@ const MAX_ATTEMPTS = 5;
 export async function POST(req: Request) {
   try {
     const session = await auth();
-    if (!session?.user?.id) {
+    const { code, email } = (await req.json()) as { code?: string; email?: string };
+    const normalizedEmail = typeof email === "string" && email.trim() ? email.trim().toLowerCase() : null;
+
+    if (!session?.user?.id && !normalizedEmail) {
       return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
     }
-
-    const { code } = (await req.json()) as { code?: string };
     if (!code || !/^\d{6}$/.test(code)) {
       return NextResponse.json({ error: "Please enter the 6-digit code from your email." }, { status: 400 });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { email: true, name: true, emailVerified: true },
-    });
+    const user = normalizedEmail
+      ? await prisma.user.findUnique({
+          where: { email: normalizedEmail },
+          select: { id: true, email: true, name: true, emailVerified: true },
+        })
+      : await prisma.user.findUnique({
+          where: { id: session!.user.id },
+          select: { id: true, email: true, name: true, emailVerified: true },
+        });
 
     if (!user?.email) {
       return NextResponse.json({ error: "User not found." }, { status: 404 });
@@ -34,7 +40,7 @@ export async function POST(req: Request) {
     }
 
     const record = await prisma.verifyToken.findFirst({
-      where: { userId: session.user.id },
+      where: { userId: user.id },
       orderBy: { createdAt: "desc" },
     });
 
@@ -78,11 +84,11 @@ export async function POST(req: Request) {
 
     await prisma.$transaction([
       prisma.user.update({
-        where: { id: session.user.id },
+        where: { id: user.id },
         data: { emailVerified: new Date() },
       }),
       prisma.verifyToken.deleteMany({
-        where: { userId: session.user.id },
+        where: { userId: user.id },
       }),
     ]);
 
@@ -92,7 +98,7 @@ export async function POST(req: Request) {
     void sendWelcomeEmail({
       to: user.email,
       name: user.name || "there",
-      userId: session.user.id,
+      userId: user.id,
     }).catch((error) => {
       console.error("[verify-otp] welcome email failed", error);
     });
