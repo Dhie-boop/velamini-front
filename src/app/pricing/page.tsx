@@ -8,6 +8,9 @@ import {
   Check, X, Zap, TrendingUp, CreditCard, Crown,
   ChevronDown, User, Building2, ArrowRight, Sparkles,
 } from "lucide-react";
+import type { CSSProperties } from "react";
+
+type CSSWithVars = CSSProperties & Record<`--${string}`, string>;
 
 /* ── Plan data ───────────────────────────────────────────────── */
 export const PERSONAL_PLANS = [
@@ -75,7 +78,7 @@ export const ORG_PLANS = [
       { t: "Data Insights",                 ok: true  },
     ],
     cta: "Get Started Free",
-    ctaHref: "/onboarding/org",
+    ctaHref: "/auth/signup/organization",
     highlight: true,
   },
   {
@@ -96,7 +99,7 @@ export const ORG_PLANS = [
       { t: "Priority support",              ok: true },
     ],
     cta: "Upgrade to Starter",
-    ctaHref: "/onboarding/org?plan=starter",
+    ctaHref: "/auth/signup/organization?plan=starter",
     highlight: true,
   },
   {
@@ -118,7 +121,7 @@ export const ORG_PLANS = [
       { t: "Priority support",              ok: true },
     ],
     cta: "Upgrade to Pro",
-    ctaHref: "/onboarding/org?plan=pro",
+    ctaHref: "/auth/signup/organization?plan=pro",
     highlight: true,
   },
   {
@@ -141,7 +144,7 @@ export const ORG_PLANS = [
       { t: "SLA guarantee",                 ok: true },
     ],
     cta: "Upgrade to Scale",
-    ctaHref: "/onboarding/org?plan=scale",
+    ctaHref: "/auth/signup/organization?plan=scale",
     highlight: true,
   },
 ] as const;
@@ -206,7 +209,7 @@ function PlanCard({ plan, period }: { plan: PricingPlan; period: BillingPeriod }
   const pInfo = PERIOD_DISPLAY[period];
   const monthlyPrice = calcPeriodMonthlyPrice(plan.price as number, period);
   return (
-    <div className={`pc${hi ? " pc--hi" : ""}`} style={{ ["--col" as any]: plan.color }}>
+    <div className={`pc${hi ? " pc--hi" : ""}`} style={{ "--col": plan.color } as CSSWithVars}>
       {/* top accent line */}
       <div className="pc-line"/>
 
@@ -266,7 +269,7 @@ function PlanCard({ plan, period }: { plan: PricingPlan; period: BillingPeriod }
       <Link
         href={plan.ctaHref}
         className={`pc-cta${hi ? " pc-cta--hi" : ""}`}
-        style={{ ["--col" as any]: plan.color }}
+        style={{ "--col": plan.color } as CSSWithVars}
       >
         {plan.cta}
         <ArrowRight size={13}/>
@@ -346,19 +349,18 @@ function YearlyCalculator({
 
 /* ── Page ────────────────────────────────────────────────────── */
 export default function PricingPage() {
-  const [isDark,  setIsDark]  = useState(true);
+  const [isDark,  setIsDark]  = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    try { return (localStorage.getItem("theme") || "dark") === "dark"; } catch { return true; }
+  });
   const [tab,     setTab]     = useState<"personal"|"org">("org");
   const [period,  setPeriod]  = useState<BillingPeriod>("monthly");
-  const [mounted, setMounted] = useState(false);
   const [personalCalcPlan, setPersonalCalcPlan] = useState("personal-plus");
   const [orgCalcPlan, setOrgCalcPlan] = useState("starter");
 
   useEffect(() => {
-    setMounted(true);
-    try {
-      const d = (localStorage.getItem("theme") || "dark") === "dark";
-      setIsDark(d); applyTheme(d);
-    } catch {}
+    applyTheme(isDark);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const toggleTheme = () => setIsDark(p => {
@@ -1001,7 +1003,7 @@ export default function PricingPage() {
 
         {/* ── Plan cards ── */}
         <div className={`pgrid ${tab==="personal" ? "pgrid--2" : "pgrid--4"}`}>
-          {plans.map(plan => <PlanCard key={plan.id} plan={plan as any} period={period}/>)}
+          {plans.map(plan => <PlanCard key={plan.id} plan={plan as PricingPlan} period={period}/>)}
         </div>
 
         {/* ── Payment methods ── */}
