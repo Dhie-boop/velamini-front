@@ -159,7 +159,7 @@ export const { handlers, signIn, signOut, auth, update: updateSession } = NextAu
 
     async session({ session, token }) {
       session.user.id = token.id as string;
-      session.user.email = typeof token.email === "string" ? token.email : null;
+      session.user.email = typeof token.email === "string" ? token.email : "";
       session.user.name = typeof token.name === "string" ? token.name : null;
       session.user.image = typeof token.picture === "string" ? token.picture : null;
       session.user.isAdminAuth = token.isAdminAuth === true;

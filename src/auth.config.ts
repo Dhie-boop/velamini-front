@@ -58,6 +58,9 @@ export const authConfig: NextAuthConfig = {
     async session({ session, token }) {
       const sessionUser = session.user as unknown as {
         id?: string;
+        email?: string | null;
+        name?: string | null;
+        image?: string | null;
         isAdminAuth?: boolean;
         status?: string;
         emailVerified?: string | null;

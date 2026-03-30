@@ -8,7 +8,7 @@ function appUrl() {
 }
 
 function sender() {
-  return process.env.RESEND_FROM_EMAIL || "contact@coodic.org";
+  return process.env.RESEND_FROM_EMAIL || "hello@velamini.com";
 }
 
 function getResendClient() {
@@ -186,9 +186,9 @@ export async function sendContactEmail({
 </body>
 </html>`;
 
-  // Send to contact@coodic.org
+  // Send to hello@velamini.com
   return sendEmail({
-    to: "contact@coodic.org",
+    to: "hello@velamini.com",
     subject: `[Velamini Contact] ${subject} - from ${fromName}`,
     html,
   });
